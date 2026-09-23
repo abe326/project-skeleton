@@ -60,7 +60,7 @@ FIXTURE_BASE = {
     f"{OPEN}/APP-01_ログイン.md": task_md("APP-01", "ログイン"),
     f"{OPEN}/QA-01_派遣を含めるか.md": task_md("QA-01", "派遣社員を対象に含めるか", kind="課題"),
     "docs/案件/01_タスク管理/closed/.keep": "",
-    ".claude/ハーネス台帳.md": "# ハーネス台帳\n\n| ID | 状態 | 内容 | 定義先 |\n|:--|:--|:--|:--|\n",
+    "docs/ハーネス台帳.md": "# ハーネス台帳\n\n| ID | 状態 | 内容 | 定義先 |\n|:--|:--|:--|:--|\n",
     "docs/案件/確認依頼一覧.md": "# 確認依頼一覧\n",
     f"{MEETING}/README.md": "# 打合せ記録\n",
     f"{MEETING}/ok.md": meeting("- 対象は本社のみ → 反映済: 01 §3\n- 方式は後で → 候補: 05 §3",

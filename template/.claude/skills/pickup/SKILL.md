@@ -52,7 +52,7 @@ ID は `[A-Z][A-Z0-9]*-NN`（2 桁以上）。`保留` という落ち先は無�
      ```bash
      python3 docs/案件/01_タスク管理/new.py <area> "<題>" [--due YYYY-MM-DD]
      ```
-   - **ハーネス候補** → `harness` スキルで `.claude/ハーネス台帳.md` に状態「候補」の 1 行を足し、`→ ハーネス候補 HN-NN` と書く。定義（settings・rules・skill・hook・agents）はユーザーの承認まで書かない
+   - **ハーネス候補** → `harness` スキルで `docs/ハーネス台帳.md` に状態「候補」の 1 行を足し、`→ ハーネス候補 HN-NN` と書く。定義（settings・rules・skill・hook・agents）はユーザーの承認まで書かない
 3. **ID を写す**。`new.py` の出力の 1 行目が確定した ID。元の行の末尾に `→ <ID>` / `→ 未決 <ID>` で書く。起票前に ID を書かない
 4. **確かめる**
    ```bash

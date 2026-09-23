@@ -105,7 +105,7 @@ cmd /c rmdir "$env:USERPROFILE\.claude\skills\new-project"
    | **案件で揃う**(Git に載る) | 指示・制約 | `CLAUDE.md`、`.claude/rules/` | clone すれば同じ |
    | | 権限・hook・環境変数 | `.claude/settings.json`(`permissions`・`hooks`・`env`) | 同じ。**ただしワークスペースを信頼していないと permissions が効かない** |
    | | skill・エージェント定義 | `.claude/skills/`、`.claude/agents/` | 同じ |
-   | | ハーネス台帳・検査 | `.claude/ハーネス台帳.md`、`scripts/check_skeleton.py` | 同じ |
+   | | ハーネス台帳・検査 | `docs/ハーネス台帳.md`、`scripts/check_skeleton.py` | 同じ |
    | | MCP(案件用) | `.mcp.json` | 同じ。初回に承認が要る |
    | **マシンに左右される** | 全案件共通の指示 | `~/.claude/CLAUDE.md` | 常に読み込まれ、案件からは外せない |
    | | グローバルの hook・plugin・環境変数 | `~/.claude/settings.json`(`hooks`・`enabledPlugins`・`env`) | 案件の hook と**合算**される。plugin の SessionStart 注入・Stop hook もここ |
@@ -118,7 +118,7 @@ cmd /c rmdir "$env:USERPROFILE\.claude\skills\new-project"
    ユーザー側の同じキーより優先される(段階 0 で確認)
 3. **マシン側の混入を確かめる**: セッション開始時の「マシン側: plugin N 個(名前)・hook M 本」の行を見る。
    出ていなければ混入なし。「ワークスペース未信頼」が出たら 1 に戻る
-4. **混入を案件で抑える**(抑えたら案件の `.claude/ハーネス台帳.md` に「マシン依存」として 1 行残す)
+4. **混入を案件で抑える**(抑えたら案件の `docs/ハーネス台帳.md` に「マシン依存」として 1 行残す)
    - **plugin**: 案件の `settings.json`(マシン固有なら `settings.local.json`)の `enabledPlugins` で
      `{"<plugin 名>@<マーケット>": false}` にする。plugin 単位で読み込みから外れ、その plugin の
      SessionStart 注入・hook・skill が止まる(段階 0 で確認)。例: ターンごとにレビューを出す Stop hook は

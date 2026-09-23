@@ -63,7 +63,7 @@ def run_full(root, phase: str) -> tuple[int, int, str]:
 
 class Harness(unittest.TestCase):
     def base(self, root, ledger_rows: str = "", deny=None):
-        write(root / ".claude/ハーネス台帳.md", LEDGER_HEAD + ledger_rows)
+        write(root / "docs/ハーネス台帳.md", LEDGER_HEAD + ledger_rows)
         write(root / ".claude/settings.json", settings(deny if deny is not None else []))
 
     def test_empty_ledger_passes(self):
@@ -112,6 +112,16 @@ class Harness(unittest.TestCase):
             rec = Recorder()
             cs.check_harness(root, report=rec)
             self.assertEqual(len(rec.fails), 4, rec.fails)   # ID の形・状態・定義先が無い・パスが無い
+
+    def test_permission_pattern_in_dest(self):
+        # 定義先に権限パターン（Bash(...)）をバッククォートで書いてもパス扱いしない（実地確認で見つかった）
+        with TempProject() as root:
+            rows = ("| HN-01 | 危険操作 | git push をしない | 2026-09-24 | 定義済 | "
+                    "`.claude/settings.json`・`Bash(git push)`・`Bash(git push *)` | 2026-09-24 |\n")
+            self.base(root, rows, deny=["Bash(git push)", "Bash(git push *)"])
+            rec = Recorder()
+            cs.check_harness(root, report=rec)
+            self.assertEqual(rec.fails, [])
 
     def test_section_nine_deny(self):
         with TempProject() as root:

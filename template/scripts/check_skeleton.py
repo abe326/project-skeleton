@@ -62,7 +62,7 @@ REQUIRED_FILES = [
     ".claude/hooks/phase.py",
     ".claude/hooks/machine_context.py",
     ".claude/skills/harness/SKILL.md",
-    ".claude/ハーネス台帳.md",
+    "docs/ハーネス台帳.md",
     ".work/README.md",
     "scripts/check_skeleton.py",
     "scripts/docs_freshness.py",
@@ -128,7 +128,7 @@ CORE_HOOKS = {
     "phase.py", "machine_context.py", "drops.py", "pickup_state.py",
     "pickup_cue.sh", "pickup_cue.py", "pickup_check.sh", "pickup_check.py",
 }
-HARNESS_LEDGER = ".claude/ハーネス台帳.md"
+HARNESS_LEDGER = "docs/ハーネス台帳.md"
 HARNESS_STATES = ("候補", "定義済", "見送り", "マシン依存")
 AGENT_MODELS = ("inherit", "haiku", "sonnet", "opus", "fable")
 
@@ -480,7 +480,7 @@ def check_drops_strict() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ハーネスの形（harness スキル・.claude/ハーネス台帳.md）
+# ハーネスの形（harness スキル・docs/ハーネス台帳.md）
 # ---------------------------------------------------------------------------
 _TABLE_SPLIT = re.compile(r"(?<!\\)\|")
 _BACKTICK = re.compile(r"`([^`]+)`")
@@ -509,8 +509,15 @@ def parse_ledger(root: Path) -> list[tuple[int, list[str]]]:
 
 
 def _dest_paths(cell: str) -> list[str]:
-    """定義先セルのバッククォート内のパス（末尾の ` §n` は捨てる）。"""
-    return [re.sub(r"\s*§.*$", "", t).strip() for t in _BACKTICK.findall(cell) if t.strip()]
+    """定義先セルのバッククォート内のパス（末尾の ` §n` は捨てる）。
+    `Bash(git push *)` のような権限パターン（ツール名(…)）はパスではないので除く。実在は settings.json 側で決まる。"""
+    out = []
+    for t in _BACKTICK.findall(cell):
+        t = t.strip()
+        if not t or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*\(.*\)", t):
+            continue
+        out.append(re.sub(r"\s*§.*$", "", t).strip())
+    return out
 
 
 def section_nine_patterns(root: Path) -> list[tuple[str, list[str]]]:

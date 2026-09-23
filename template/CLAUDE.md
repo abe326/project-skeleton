@@ -25,7 +25,7 @@
 5. **秘密（URL・ID・パスワード・API キー・トークン）は `環境情報.md` と `.env` にだけ書く。** `docs/`・概要 HTML・タスク md・会話出力へ転記しない（`.claude/rules/secrets.md`）
 6. **応答・文書は日本語。** コード識別子・コマンド・固有名詞は原語のまま
 7. **作業の区切りで、出てきた決定・未決・あとでやることを `pickup` スキルで「反映済・タスク・未決（課題）」のどれかに落とす。落ち先の無いまま残さない。** 立ち上げ期は拾うだけ（決まったことは `docs/設計書/01-overview.md` §1・§3 に 1 行、ほかの設計書は落ち先に「→ 候補: NN §n」と書く）。開発・運用期は設計書に影響が出たら同じ作業の中で `sync-design-docs` スキル。空欄・未記入の多さでは止めない
-8. **ハーネス（skill・hook・rule・permissions・agents）はユーザーの承認なしに定義しない。** 同じ手順を 2 回した・「しないで」と言われた・同じ指摘を 2 回受けたら、`harness` スキルで `.claude/ハーネス台帳.md` に候補として書く。`.claude/agents/*.md` の定義には `model` を必ず書く
+8. **ハーネス（skill・hook・rule・permissions・agents）はユーザーの承認なしに定義しない。** 同じ手順を 2 回した・「しないで」と言われた・同じ指摘を 2 回受けたら、`harness` スキルで `docs/ハーネス台帳.md` に候補として書く。`.claude/agents/*.md` の定義には `model` を必ず書く
 
 <!-- プロジェクト固有の制約をここに追記する（番号は 9 から続ける） -->
 
@@ -39,9 +39,10 @@
 │   ├── プロジェクト概要.html     ← 目的・思想・現在地・将来対応・構成図（正本）
 │   ├── 案件/01_タスク管理/       ← タスク md（open/ closed/）＋ new.py / close.py / build.py
 │   ├── 案件/02_打合せ/           ← 打合せ記録 YYYYMMDD_タイトル.md
+│   ├── ハーネス台帳.md           ← ハーネスの候補・定義済（harness スキル）
 │   └── 設計書/                  ← 設計の正本 01〜09（decisions/ に ADR、runbook/ に手順）。構成図の正本は .claude/rules/docs-management.md
 ├── .work/                       ← Git 管理外の作業領域（証跡/ 機密/ 一時/ _bk/）
-└── .claude/                     ← rules/ skills/ hooks/ settings.json・ハーネス台帳.md
+└── .claude/                     ← rules/ skills/ hooks/ settings.json(編集は承認が要る領域)
 ```
 
 ## 5. 技術スタック

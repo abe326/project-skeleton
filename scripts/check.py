@@ -48,7 +48,7 @@ TEMPLATE_REQUIRED = [
     ".claude/skills/audit-design-docs/SKILL.md",
     ".claude/skills/pickup/SKILL.md",
     ".claude/skills/harness/SKILL.md",
-    ".claude/ハーネス台帳.md",
+    "docs/ハーネス台帳.md",
     ".claude/hooks/session_context.sh",
     ".claude/hooks/work_area_guard.sh",
     ".claude/hooks/work_area_guard.py",

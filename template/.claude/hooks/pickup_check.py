@@ -37,7 +37,7 @@ TASK_DIR = "docs/案件/01_タスク管理"
 DESIGN_DIR = "docs/設計書"
 # 見張る置き場: (ディレクトリ, 深さ) か 単一ファイル
 WATCH_DIRS = [(MEETING_DIR, 0), (f"{TASK_DIR}/open", 0), (f"{TASK_DIR}/closed", 0), (DESIGN_DIR, 1)]
-WATCH_FILES = ["docs/案件/確認依頼一覧.md", "docs/プロジェクト概要.html", ".claude/ハーネス台帳.md"]
+WATCH_FILES = ["docs/案件/確認依頼一覧.md", "docs/プロジェクト概要.html", "docs/ハーネス台帳.md"]
 SOURCE_SKIP = (".work/", ".claude/", "docs/")
 PROBLEM_LABEL = {"orphan": "落ち先なし", "format": "書式違反", "missing": "ID 不在", "notissue": "課題でない"}
 KIND_LABEL = {"later": "あとでやる", "decision": "決定", "issue": "未決", "harness": "ハーネス候補"}
@@ -147,7 +147,7 @@ def cue_signals(cues: list[dict], touched: set[str], seen: set[str]) -> tuple[li
         label = KIND_LABEL.get(kind, kind)
         word = drops.short(str(c.get("v", "")), 20)
         if kind == "harness":
-            lines.append(f"- 依頼文の「{word}」（{label}）: harness スキルで .claude/ハーネス台帳.md に「候補」で 1 行")
+            lines.append(f"- 依頼文の「{word}」（{label}）: harness スキルで docs/ハーネス台帳.md に「候補」で 1 行")
         else:
             lines.append(f"- 依頼文の「{word}」（{label}）がまだどこにも落ちていない")
     return lines, keys

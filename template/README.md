@@ -11,7 +11,7 @@
 ## Claude Code で開く前に
 
 - **初回は対話起動（`claude`）でこのフォルダを開き、ワークスペースを信頼する。** 信頼する前に `claude -p` で動かすと `.claude/settings.json` の許可が効かず、skill やテストが権限で止まる
-- 案件で揃うのは `CLAUDE.md`・`.claude/`（rules・skills・hooks・settings.json・ハーネス台帳）。マシンの `~/.claude/` の指示・plugin・hook は合算されて動く。混ざっていればセッション開始時に「マシン側:」の行が出る
+- 案件で揃うのは `CLAUDE.md`・`.claude/`（rules・skills・hooks・settings.json）・`docs/ハーネス台帳.md`。マシンの `~/.claude/` の指示・plugin・hook は合算されて動く。混ざっていればセッション開始時に「マシン側:」の行が出る
 - 抑え方と書き分けの表は project-skeleton の `SETUP.md` §8「案件で Claude Code を使うとき」
 
 ## セットアップ

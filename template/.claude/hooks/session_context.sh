@@ -135,7 +135,7 @@ fi
 
 # 6) ハーネス候補（台帳の状態「候補」の行数）とマシン側の混入（machine_context.py）。どちらも 0 件なら出さない
 parts=""
-LEDGER=".claude/ハーネス台帳.md"
+LEDGER="docs/ハーネス台帳.md"
 if [ -f "$LEDGER" ]; then
   hn=$(grep -cE '^\|[[:space:]]*HN-[0-9]+[[:space:]]*\|.*\|[[:space:]]*候補[[:space:]]*\|' "$LEDGER" 2>/dev/null)
   if [ "${hn:-0}" -gt 0 ] 2>/dev/null; then

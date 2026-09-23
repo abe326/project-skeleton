@@ -26,7 +26,7 @@ MEETING_DIR = "docs/案件/02_打合せ"
 TASK_DIR = "docs/案件/01_タスク管理"
 DESIGN_DIR = "docs/設計書"
 CONFIRM_MD = "docs/案件/確認依頼一覧.md"
-LEDGER_MD = ".claude/ハーネス台帳.md"
+LEDGER_MD = "docs/ハーネス台帳.md"
 OVERVIEW_HTML = "docs/プロジェクト概要.html"
 
 ID_OK = re.compile(r"^[A-Z][A-Z0-9]*-\d{2,}$")

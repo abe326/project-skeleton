@@ -84,7 +84,7 @@ class CheckSecrets(unittest.TestCase):
     def test_scope(self):
         with TempProject() as root:
             bad = "password=Kintai2027!\n"
-            for rel in ("CLAUDE.md", ".claude/ハーネス台帳.md", ".claude/rules/x.md", "docs/案件/確認依頼一覧.md",
+            for rel in ("CLAUDE.md", "docs/ハーネス台帳.md", ".claude/rules/x.md", "docs/案件/確認依頼一覧.md",
                         "docs/案件/01_タスク管理/open/APP-01_x.md"):
                 write(root / rel, bad)
             for rel in ("環境情報.md", "案件情報.md", ".work/一時/20260923_x/a.md", "docs/案件/01_タスク管理/data.js",
@@ -94,7 +94,7 @@ class CheckSecrets(unittest.TestCase):
             check_skeleton.check_secrets(root, report=rec)
             self.assertEqual(len(rec.fails), 5, rec.fails)
             files = {f.split(":", 1)[0] for f in rec.fails}
-            self.assertEqual(files, {"CLAUDE.md", ".claude/ハーネス台帳.md", ".claude/rules/x.md",
+            self.assertEqual(files, {"CLAUDE.md", "docs/ハーネス台帳.md", ".claude/rules/x.md",
                                      "docs/案件/確認依頼一覧.md", "docs/案件/01_タスク管理/open/APP-01_x.md"})
 
     def test_design_only(self):

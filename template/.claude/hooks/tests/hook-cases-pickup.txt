@@ -47,7 +47,7 @@ context	prompt:SSO の方式はまだ未定です	未決	-	未決の手がかり
 context	prompt:認証は JWT で行こう、それで決定	決定	-	決定の手がかり
 context	prompt:今後 rm -rf は使わないで	ハーネス候補	-	UserPromptSubmit の文脈
 block	prompt:今後 rm -rf は使わないで;stop	ハーネス候補	-	S2（ハーネス）
-none	prompt:今後 rm -rf は使わないで;bash:.claude/ハーネス台帳.md;stop	-	-	台帳に書いたので落ちた扱い
+none	prompt:今後 rm -rf は使わないで;bash:docs/ハーネス台帳.md;stop	-	-	台帳に書いたので落ちた扱い
 none	prompt:/task 起票して あとで;stop	-	-	スラッシュコマンドは見ない
 none	prompt:あとで	-	-	10 字未満は見ない
 none	prompt:次のコードを見て\n```\n# TODO: あとで直す\n```\nどう思う?;stop	-	-	コードブロック内は見ない
