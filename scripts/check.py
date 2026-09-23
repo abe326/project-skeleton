@@ -44,14 +44,21 @@ TEMPLATE_REQUIRED = [
     ".claude/skills/update-overview/SKILL.md",
     ".claude/skills/update-env-info/SKILL.md",
     ".claude/skills/task/SKILL.md",
+    ".claude/skills/sync-design-docs/SKILL.md",
+    ".claude/skills/audit-design-docs/SKILL.md",
     ".claude/hooks/session_context.sh",
     ".claude/hooks/work_area_guard.sh",
     ".claude/hooks/work_area_guard.py",
+    ".claude/hooks/design_docs_reminder.sh",
+    ".claude/hooks/design_docs_reminder.py",
+    ".claude/hooks/impact_map.py",
     ".claude/hooks/tests/hook-cases-guard.txt",
+    ".claude/hooks/tests/hook-cases-reminder.txt",
     ".claude/hooks/tests/run-all.sh",
     ".work/README.md",
     ".work/証跡/.gitkeep", ".work/機密/.gitkeep", ".work/一時/.gitkeep", ".work/_bk/.gitkeep",
     "scripts/check_skeleton.py",
+    "scripts/docs_freshness.py",
     "docs/README.md",
     "docs/プロジェクト概要.html",
     "docs/案件/README.md",
@@ -68,6 +75,14 @@ TEMPLATE_REQUIRED = [
     "docs/設計書/README.md",
     "docs/設計書/01-overview.md",
     "docs/設計書/02-architecture.md",
+    "docs/設計書/03-ステークホルダー.md",
+    "docs/設計書/04-設計原則.md",
+    "docs/設計書/05-セキュリティ設計.md",
+    "docs/設計書/06-品質設計.md",
+    "docs/設計書/07-開発運用設計.md",
+    "docs/設計書/08-利用者運用設計.md",
+    "docs/設計書/09-非機能と縮退.md",
+    "docs/設計書/runbook/README.md",
     "docs/設計書/decisions/README.md",
     "docs/設計書/decisions/ADR-000-テンプレート.md",
 ]
@@ -298,6 +313,16 @@ def main() -> int:
         first = claude_md.read_text(encoding="utf-8", errors="replace").lstrip().splitlines()[:1]
         check(bool(first) and first[0].startswith("<!-- project-skeleton v"),
               "template/CLAUDE.md の先頭が <!-- project-skeleton v… -->")
+
+    # 13. template の設計書（メタ行は {{CREATED}} 許容・sha 不要・影響マップの解決は template 相対）
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(TEMPLATE / "scripts"))
+    try:
+        import check_skeleton
+    except Exception as e:
+        ng(f"template/scripts/check_skeleton.py を import できない: {e}")
+    else:
+        check_skeleton.check_design_docs(TEMPLATE, template=True, report=check)
 
     print(f"pass={PASS} fail={FAIL}")
     return 1 if FAIL else 0

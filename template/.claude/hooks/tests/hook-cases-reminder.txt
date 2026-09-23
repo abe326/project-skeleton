@@ -1,0 +1,36 @@
+# design_docs_reminder.py の判定ケース。影響マップは docs/設計書/README.md の実物を使う。
+# 書式: <期待 none|remind><TAB><file_path><TAB><stdout に含まれるべき文字列><TAB><session_id><TAB><CLAUDE_PROJECT_DIR の上書き>
+# 3〜5 列目は省略可。途中の列を飛ばすときは `-` を置く（空欄のタブ連続は bash の read が 1 つに畳むので列がずれる）。
+# session_id を省略した行は毎回リマインドが出る。
+# 5 列目の {WIN} は run-all.sh が template ルートの Windows 形式（C:\…）に置き換える。
+# 行頭 # と空行は無視。
+
+# --- 影響マップに当たる ---
+remind	src/auth/login.py	docs/設計書/05-セキュリティ設計.md
+remind	backend/rbac/roles.py	05-セキュリティ設計.md
+remind	supabase/migrations/20260923_init.sql	02-architecture.md
+remind	.github/workflows/deploy.yml	07-開発運用設計.md
+remind	Dockerfile	07-開発運用設計.md
+remind	docker-compose.dev.yml	07-開発運用設計.md
+remind	tests/test_login.py	06-品質設計.md
+remind	docs/案件/02_打合せ/20260923_定例.md	03-ステークホルダー.md
+remind	docs/設計書/decisions/ADR-001-naming.md	decisions/README.md
+remind	docs/設計書/01-overview.md	プロジェクト概要.html
+remind	package.json	02-architecture.md
+
+# --- 当たらない ---
+none	src/util/strings.py
+none	README.md
+none	docs/プロジェクト概要.html
+none	.work/一時/20260923_確認/x.md
+none	.claude/skills/task/SKILL.md
+none	docs/案件/01_タスク管理/open/QA-01_x.md
+none	/tmp/other/auth.py
+
+# --- 同じ session_id では同じ候補の組み合わせを 2 回出さない ---
+remind	src/auth/a.py	05-セキュリティ設計.md	sess-dup-1
+none	src/auth/b.py	-	sess-dup-1
+remind	tests/test_a.py	06-品質設計.md	sess-dup-1
+
+# --- Windows 形式（file_path・ルートとも C:\…）---
+remind	{WIN}\src\auth\login.py	05-セキュリティ設計.md	-	{WIN}

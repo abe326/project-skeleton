@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """このプロジェクトがスケルトンの構成を保っているかを検査する。
 
-使い方: python3 scripts/check_skeleton.py [--overview] [-v]
+使い方: python3 scripts/check_skeleton.py [--overview | --docs] [-v]
 
 出力: `NG <内容>` 行 + 最後に `pass=N fail=M`。fail>0 なら exit 1。
---overview は docs/プロジェクト概要.html の項目だけを検査する。
+--overview は docs/プロジェクト概要.html の項目だけ、--docs は docs/設計書/ の項目だけを検査する。
 標準ライブラリのみ使用。プロジェクトルートはこのファイルの親の親。
 """
 
@@ -17,7 +17,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / ".claude/hooks"))
+
+# 設計書 03〜09（01・02 は REQUIRED_FILES 側）。鮮度メタ行・改訂履歴の検査対象は docs/設計書/**/*.md 全体
+DESIGN_DOCS = [
+    "docs/設計書/03-ステークホルダー.md",
+    "docs/設計書/04-設計原則.md",
+    "docs/設計書/05-セキュリティ設計.md",
+    "docs/設計書/06-品質設計.md",
+    "docs/設計書/07-開発運用設計.md",
+    "docs/設計書/08-利用者運用設計.md",
+    "docs/設計書/09-非機能と縮退.md",
+]
 
 REQUIRED_FILES = [
     "CLAUDE.md", "README.md", "CHANGELOG.md", ".gitignore",
@@ -31,11 +44,20 @@ REQUIRED_FILES = [
     ".claude/skills/update-overview/SKILL.md",
     ".claude/skills/update-env-info/SKILL.md",
     ".claude/skills/task/SKILL.md",
+    ".claude/skills/sync-design-docs/SKILL.md",
+    ".claude/skills/audit-design-docs/SKILL.md",
     ".claude/hooks/session_context.sh",
     ".claude/hooks/work_area_guard.sh",
     ".claude/hooks/work_area_guard.py",
+    ".claude/hooks/design_docs_reminder.sh",
+    ".claude/hooks/design_docs_reminder.py",
+    ".claude/hooks/impact_map.py",
+    ".claude/hooks/tests/run-all.sh",
+    ".claude/hooks/tests/hook-cases-guard.txt",
+    ".claude/hooks/tests/hook-cases-reminder.txt",
     ".work/README.md",
     "scripts/check_skeleton.py",
+    "scripts/docs_freshness.py",
     "docs/README.md",
     "docs/プロジェクト概要.html",
     "docs/案件/README.md",
@@ -50,7 +72,11 @@ REQUIRED_FILES = [
     "docs/案件/02_打合せ/README.md",
     "docs/案件/確認依頼一覧.md",
     "docs/設計書/README.md",
+    "docs/設計書/01-overview.md",
+    "docs/設計書/02-architecture.md",
+    *DESIGN_DOCS,
     "docs/設計書/decisions/README.md",
+    "docs/設計書/runbook/README.md",
 ]
 REQUIRED_DIRS = [
     ".work/証跡", ".work/機密", ".work/一時", ".work/_bk",
@@ -145,6 +171,109 @@ def check_overview() -> None:
     check(bool(re.search(r'charset="utf-8"', html, re.I)), '概要 HTML に charset="UTF-8" がある')
 
 
+# 鮮度メタ行（2 行目付近）。template 検査では日付の代わりに {{CREATED}} プレースホルダも通す
+META_RE = re.compile(r"^> 最終更新: \d{4}-\d{2}-\d{2}（.+）／ 対象: .+")
+META_RE_TEMPLATE = re.compile(r"^> 最終更新: (?:\d{4}-\d{2}-\d{2}|\{\{CREATED\}\})（.+）／ 対象: .+")
+PLACEHOLDER_RE = re.compile(r"\{\{[A-Z_]+\}\}")
+# 秘密らしき文字列。値そのものは NG 文言に出さない
+SECRET_RES = [
+    re.compile(r"(?i)\b(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{12,}"),
+    re.compile(r"https?://[^/\s:]+:[^@\s]+@"),
+]
+DESIGN_EXCLUDE_DIRS = {"decisions", "runbook"}
+
+
+def iter_design_docs(root: Path) -> list[Path]:
+    """鮮度メタ行・改訂履歴の検査対象（decisions/・runbook/・README.md を除く）。"""
+    base = root / "docs/設計書"
+    if not base.is_dir():
+        return []
+    return [p for p in sorted(base.rglob("*.md"))
+            if p.relative_to(base).parts[0] not in DESIGN_EXCLUDE_DIRS and p.name != "README.md"]
+
+
+def check_design_docs(root: Path = ROOT, template: bool = False, report=None) -> None:
+    """docs/設計書/ の約束を検査する（メタ行・改訂履歴・索引・影響マップ・秘密・docs_freshness.py）。
+
+    template=True はスケルトンの template/ を対象にする（{{CREATED}} を許容、docs_freshness.py の結果は見ない）。
+    report は check(cond, msg) 互換の関数。省略時はこのモジュールの check。
+    """
+    chk = report or check
+    base = root / "docs/設計書"
+    if not chk(base.is_dir(), "docs/設計書/ がある"):
+        return
+    meta_re = META_RE_TEMPLATE if template else META_RE
+
+    # (i) メタ行 (ii) 改訂履歴
+    for p in iter_design_docs(root):
+        rel = p.relative_to(root).as_posix()
+        try:
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            chk(False, f"{rel} を読めない")
+            continue
+        head = text.splitlines()[:20]
+        meta = next((l for l in head if meta_re.match(l)), None)
+        chk(meta is not None, f"{rel}: 冒頭に鮮度メタ行（> 最終更新: YYYY-MM-DD（…）／ 対象: …）がある")
+        if meta is not None and not template:
+            chk(not PLACEHOLDER_RE.search(meta), f"{rel}: メタ行にプレースホルダが残っていない")
+        chk(bool(re.search(r"^## 改訂履歴", text, re.M)), f"{rel}: ## 改訂履歴 がある")
+
+    # 索引: 直下の NN-*.md が README に載っている / README が指す NN-*.md が実在する
+    readme = base / "README.md"
+    try:
+        readme_text = readme.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        chk(False, "docs/設計書/README.md を読めない")
+        return
+    for p in sorted(base.glob("*.md")):
+        if re.match(r"^\d{2}-.*\.md$", p.name):
+            chk(p.name in readme_text, f"索引漏れ: docs/設計書/README.md に {p.name} が載っている")
+    for name in sorted(set(re.findall(r"`(\d{2}-[^`/]+\.md)`", readme_text))):
+        chk((base / name).is_file(), f"死に索引: README.md が指す {name} が実在する")
+
+    # 影響マップ
+    try:
+        import impact_map
+    except ImportError:
+        chk(False, "影響マップ: .claude/hooks/impact_map.py を import できない")
+        return
+    rows = impact_map.load_impact_map(str(readme))
+    if chk(len(rows) >= 1, f"影響マップ（## 変えたもの → 一緒に直す正本）に機械行が 1 行以上ある: {len(rows)} 行"):
+        for row in rows:
+            for g in row.globs:
+                try:
+                    impact_map.glob_matches("x/y", g)
+                    usable = True
+                except re.error:
+                    usable = False
+                chk(usable, f"影響マップ {row.line_no} 行目: glob が使える: {g}")
+            chk(bool(row.targets), f"影響マップ {row.line_no} 行目: 一緒に直す正本が 1 つ以上ある")
+            for t in row.targets:
+                chk(bool(impact_map.resolve_target(t, str(root))),
+                    f"影響マップ {row.line_no} 行目: 正本が実ファイルに解決できる: {t}")
+
+    # 秘密らしき文字列（概要 HTML + 全設計書）
+    targets = [root / "docs/プロジェクト概要.html"] + sorted(base.rglob("*.md"))
+    for p in targets:
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        hits = [i for i, l in enumerate(lines, 1) if any(r.search(l) for r in SECRET_RES)]
+        chk(not hits, f"{p.relative_to(root).as_posix()}: 秘密らしき文字列（行 {', '.join(map(str, hits[:5]))}）" if hits
+            else f"{p.relative_to(root).as_posix()}: 秘密らしき文字列なし")
+
+    # docs_freshness.py --quiet が整数を返す（鮮度の中身では fail にしない）
+    fresh = root / "scripts/docs_freshness.py"
+    if fresh.is_file() and not template:
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+        r = subprocess.run([sys.executable, str(fresh), "--quiet"], cwd=str(root), env=env,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        chk(r.returncode == 0 and r.stdout.strip().isdigit(),
+            f"docs_freshness.py --quiet が整数を返す（exit {r.returncode}: {r.stdout.strip()[:20]!r}）")
+
+
 def check_all() -> None:
     # 必須ファイル・ディレクトリ
     for rel in REQUIRED_FILES:
@@ -221,6 +350,9 @@ def check_all() -> None:
     # 概要 HTML
     check_overview()
 
+    # 設計書
+    check_design_docs()
+
     # .gitignore
     gi = ROOT / ".gitignore"
     if gi.is_file():
@@ -260,6 +392,8 @@ def main() -> int:
         pass
     if "--overview" in sys.argv[1:]:
         check_overview()
+    elif "--docs" in sys.argv[1:]:
+        check_design_docs()
     else:
         check_all()
     print(f"pass={PASS} fail={FAIL}")

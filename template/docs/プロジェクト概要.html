@@ -164,7 +164,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
     <li><a href="#principles"><span class="n">2</span>思想・設計原則</a></li>
     <li><a href="#phase"><span class="n">3</span>現在地</a></li>
     <li><a href="#roadmap"><span class="n">4</span>将来対応</a></li>
-    <li><a href="#map"><span class="n">5</span>構成図と環境の入口</a></li>
+    <li><a href="#map"><span class="n">5</span>構成図・環境・設計書の入口</a></li>
     <li><a href="#history"><span class="n">6</span>更新履歴</a></li>
   </ol>
 </nav>
@@ -240,7 +240,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
 <!-- ============================================================ -->
 <section id="map">
   <div class="eyebrow"><span class="no">05</span>MAP</div>
-  <h2>構成図と環境の入口</h2>
+  <h2>構成図・環境・設計書の入口</h2>
   <!-- BEGIN:map -->
 <pre><code>  利用者 ──▶ [ フロント ] ──▶ [ API ] ──▶ [ DB ]
                                    └──▶ [ 外部サービス ]
@@ -255,6 +255,23 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
   </table>
   <div class="callout"><p>URL・ID・パスワード・鍵はこのページに書かない。実値は <code>環境情報.md</code>（ルート直下・Git 管理外）にあり、ここには「名前・用途・正本の所在」だけを置く。</p></div>
   <!-- END:map -->
+
+  <h3>設計書の入口</h3>
+  <table>
+    <thead><tr><th class="id" style="width:4em">#</th><th>何の正本か</th><th>いつ読むか</th></tr></thead>
+    <tbody>
+      <tr><td class="id">01</td><td>何を作るか — 目的・利用者ロール・スコープ・用語</td><td>最初に。機能を足す・削るとき</td></tr>
+      <tr><td class="id">02</td><td>どう作るか — 構成・技術スタック・データの流れと信頼境界・環境</td><td>コンポーネントを足す、境界をまたぐ処理を書くとき</td></tr>
+      <tr><td class="id">03</td><td>誰と決めるか — 関係者ロール・判断権限・確認の取り方・NG 事項</td><td>誰かに確認する前、文面を送る前</td></tr>
+      <tr><td class="id">04</td><td>なぜそうするか — 原則・緊張関係・方針の変遷</td><td>判断に迷ったとき</td></tr>
+      <tr><td class="id">05</td><td>何を守るか — 脅威・境界・認証権限・データ格付け・鍵</td><td>認証・権限・ログ・外部連携・秘密を触るとき</td></tr>
+      <tr><td class="id">06</td><td>何を壊れたとみなすか — 重大度・機械のゲート・レビュー観点・不変条件・テスト</td><td>レビューする前、hook・CI・テストを触るとき</td></tr>
+      <tr><td class="id">07</td><td>どう回すか（開発側）— 環境・ブランチ・DB・デプロイ・戻し・監視</td><td>マイグレーション・デプロイ・戻しの前</td></tr>
+      <tr><td class="id">08</td><td>どう回すか（利用者側）— 業務フロー・権限付与・サポート・障害時の文面</td><td>利用者に見せる文面・権限付与の前</td></tr>
+      <tr><td class="id">09</td><td>どこまで耐えるか — 目標・容量・バックアップ・縮退・監視条件・費用</td><td>性能・容量・障害・費用の話をするとき</td></tr>
+    </tbody>
+  </table>
+  <p class="note">正本は <code>docs/設計書/README.md</code>。ここは要約。文書を増減したときだけ手で直す。</p>
 </section>
 
 <!-- ============================================================ -->

@@ -22,14 +22,20 @@ project-skeleton/
 └── template/                 生成元。プレースホルダ {{…}} を init.py が埋める
     ├── CLAUDE.md / README.md / CHANGELOG.md / _gitignore / .gitattributes / .editorconfig / .env.example
     ├── 環境情報.md / 案件情報.md           (生成先では .gitignore 対象)
-    ├── .claude/settings.json / rules/ / skills/ / hooks/
+    ├── .claude/settings.json / rules/(3 本)
+    │   ├── skills/                        work-placement / scratch / task / update-overview / update-env-info /
+    │   │                                  sync-design-docs / audit-design-docs(7 本)
+    │   └── hooks/                         session_context(SessionStart)/ work_area_guard(PreToolUse)/
+    │                                      design_docs_reminder(PostToolUse)+ impact_map.py + tests/
     ├── .work/                             作業領域(証跡・機密・一時・_bk)
-    ├── scripts/check_skeleton.py          生成先の検査
+    ├── scripts/check_skeleton.py          生成先の検査(--overview / --docs)
+    ├── scripts/docs_freshness.py          設計書の鮮度(メタ行の日付・対象・sha から要確認を出す)
     └── docs/
         ├── プロジェクト概要.html          マーカー付きの 1 枚概要
         ├── 案件/01_タスク管理/            new.py / close.py / screen.py / build.py / areas.json / index.html
         ├── 案件/02_打合せ/ ・ 案件/確認依頼一覧.md
-        └── 設計書/                         01-overview / 02-architecture / decisions(ADR)
+        └── 設計書/                         01-overview 〜 09-非機能と縮退 / decisions(ADR)/ runbook/
+                                            README.md の影響マップ(変えたもの → 一緒に直す正本)を hook・検査が読む
 ```
 
 `template/_gitignore` は生成時に `.gitignore` へリネームされる(スケルトンリポ内で効かせないため)。
@@ -64,7 +70,7 @@ python3 <生成先>/scripts/check_skeleton.py     # 生成先(同じ形式。--o
 ## 生成されるプロジェクトの要点
 
 - `CLAUDE.md` 先頭に `<!-- project-skeleton vX.Y.Z generated YYYY-MM-DD -->`。どの版から作ったかが分かる
-- `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード)
+- `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task / sync-design-docs / audit-design-docs)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード・設計書追随リマインド)
 - `.work/` は git 管理外の作業領域。証跡・機密・一時・_bk の 4 枠
 - `docs/案件/01_タスク管理/` は Markdown ファイル 1 枚 = 1 タスク。`build.py` が `data.js` と概要 HTML のスナップショットを更新
 - `環境情報.md` `案件情報.md` `.env` は `.gitignore` 対象。公開しない情報はここに書く

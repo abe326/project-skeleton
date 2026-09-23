@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SessionStart hook: タスクの状況・概要 HTML の鮮度・環境情報の有無・当日の一時フォルダ数を 5 行以内で注入する。
+# SessionStart hook: タスクの状況・概要 HTML の鮮度・環境情報の有無・当日の一時フォルダ数・設計書の鮮度を 6 行以内で注入する。
 # stdout はそのまま Claude のコンテキストに入る。秘密情報は出力しない。python が無くても動く。常に exit 0。
 set -u
 cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null || exit 0
@@ -65,5 +65,25 @@ fi
 today=$(date +%Y%m%d)
 n=$(ls -d ".work/一時/${today}_"* 2>/dev/null | wc -l | tr -d ' ')
 echo "- .work/一時/ の本日フォルダ: ${n:-0} 個。一時ファイルは .work/一時/${today}_用途/ へ（scratch スキル）"
+
+# 5) 設計書の鮮度（docs_freshness.py の要確認本数。python が無ければメタ行の有無だけ grep で数える）
+DD="docs/設計書"
+if [ -d "$DD" ]; then
+  cnt=""
+  if [ -n "$PY" ] && [ -f "scripts/docs_freshness.py" ]; then
+    cnt=$("$PY" scripts/docs_freshness.py --quiet 2>/dev/null | tr -d '[:space:]')
+  fi
+  if [ -n "$cnt" ] && [ "$cnt" -ge 0 ] 2>/dev/null; then
+    echo "- 設計書の要確認: ${cnt} 本（python3 scripts/docs_freshness.py で一覧。直すなら sync-design-docs、棚卸しは audit-design-docs）"
+  else
+    miss=0
+    for f in "$DD"/*.md; do
+      [ -f "$f" ] || continue
+      case "$f" in */README.md) continue ;; esac
+      head -20 "$f" | grep -q "最終更新" || miss=$((miss+1))
+    done
+    echo "- 設計書: メタ行なし ${miss} 本（grep 概算。python を入れると鮮度も見る。直すなら sync-design-docs）"
+  fi
+fi
 
 exit 0

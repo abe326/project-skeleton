@@ -49,7 +49,7 @@ allowed-tools: Bash(python3 *) Bash(python *)
    ```bash
    python3 scripts/check_skeleton.py --overview
    ```
-   マーカー対の欠落・重複、外部 `src` / `href`、秘密らしき文字列を検出する。失敗したら直してから終える
+   マーカー対の欠落・重複、外部 `src` / `href` を検出する。秘密らしき文字列（`password=…` / `token: …` 等の 12 文字以上の値、`https://user:pass@…` の URL 埋め込み資格情報）は `check_skeleton.py --docs` が概要 HTML と設計書をまとめて見るので、続けて実行する。失敗したら直してから終える
 7. **変更点を 3 行で報告する**（どのセクションを・何から何へ・関連 ID）
 
 ## 書き方の決めごと
