@@ -10,6 +10,7 @@ python3 の標準ライブラリだけで動き、外部依存はない。
 ```
 project-skeleton/
 ├── SKILL.md                  new-project skill(Claude Code が読む手順)
+├── CLAUDE.md                 このリポを開発するセッション向けのガイド
 ├── README.md                 このファイル
 ├── SETUP.md                  グローバル配備の手順(各マシンで 1 回)
 ├── CHANGELOG.md              版ごとの変更と「既存プロジェクトへの適用」
