@@ -75,6 +75,7 @@ powershell -ExecutionPolicy Bypass -File "<このリポ>\scripts\install-global.
 5. §5 の動作確認を行い、結果を報告する
 6. **必ず伝える**: 「`~/.claude` はマシンごとに別です。もう一方のマシンでも同じ手順が必要です」
 7. リンク作成に失敗したら `--copy`(Windows は `-Copy`)で配備し、コピー配備であることと更新時の再配備を伝える
+8. 生成した案件を初めて開くときは、§8 の 1(対話起動でワークスペースを信頼する)を伝える
 
 ## 7. 外す
 
@@ -90,3 +91,41 @@ cmd /c rmdir "$env:USERPROFILE\.claude\skills\new-project"
 
 コピー配備の場合はフォルダごと削除してよい(`INSTALLED-AS-COPY.txt` があるのがコピー)。
 `~/.claude/CLAUDE.md` の「## 新規プロジェクト」節も消す。
+
+## 8. 案件で Claude Code を使うとき(案件ごと・マシンごとに 1 回)
+
+1. **初回は対話起動でワークスペースを信頼する。** `cd <案件>` → `claude` → 信頼の確認で承認する。
+   信頼する前に非対話(`claude -p`)で動かすと、案件の `.claude/settings.json` の `permissions.allow` が効かず、
+   テストや Bash が権限で止まる(`Skill(<名前>)` を allow に書いても効かない。v1.2.0 の段階 0 で確認)。
+   テンプレートの skill は `allowed-tools` を持たない(持つと未信頼のワークスペースで起動が拒否されるため)
+2. 案件で揃うもの / マシンに左右されるもの
+
+   | 区分 | もの | 置き場 | 揃い方 |
+   |---|---|---|---|
+   | **案件で揃う**(Git に載る) | 指示・制約 | `CLAUDE.md`、`.claude/rules/` | clone すれば同じ |
+   | | 権限・hook・環境変数 | `.claude/settings.json`(`permissions`・`hooks`・`env`) | 同じ。**ただしワークスペースを信頼していないと permissions が効かない** |
+   | | skill・エージェント定義 | `.claude/skills/`、`.claude/agents/` | 同じ |
+   | | ハーネス台帳・検査 | `.claude/ハーネス台帳.md`、`scripts/check_skeleton.py` | 同じ |
+   | | MCP(案件用) | `.mcp.json` | 同じ。初回に承認が要る |
+   | **マシンに左右される** | 全案件共通の指示 | `~/.claude/CLAUDE.md` | 常に読み込まれ、案件からは外せない |
+   | | グローバルの hook・plugin・環境変数 | `~/.claude/settings.json`(`hooks`・`enabledPlugins`・`env`) | 案件の hook と**合算**される。plugin の SessionStart 注入・Stop hook もここ |
+   | | 個人の上書き | `.claude/settings.local.json`(Git 管理外) | そのマシンだけ |
+   | | ワークスペースの信頼 | `~/.claude.json` | マシンごと・フォルダごとに 1 回 |
+   | | モデル・effort | 起動時の選択、`~/.claude/settings.json` | セッションごと |
+   | | ツール | python3・git・テストランナー | マシンごと。無いときの振る舞いは台帳の「品質ゲート」で決める |
+
+   サブエージェントの既定モデルは、案件の `env.CLAUDE_CODE_SUBAGENT_MODEL`(テンプレートは `sonnet`)が
+   ユーザー側の同じキーより優先される(段階 0 で確認)
+3. **マシン側の混入を確かめる**: セッション開始時の「マシン側: plugin N 個(名前)・hook M 本」の行を見る。
+   出ていなければ混入なし。「ワークスペース未信頼」が出たら 1 に戻る
+4. **混入を案件で抑える**(抑えたら案件の `.claude/ハーネス台帳.md` に「マシン依存」として 1 行残す)
+   - **plugin**: 案件の `settings.json`(マシン固有なら `settings.local.json`)の `enabledPlugins` で
+     `{"<plugin 名>@<マーケット>": false}` にする。plugin 単位で読み込みから外れ、その plugin の
+     SessionStart 注入・hook・skill が止まる(段階 0 で確認)。例: ターンごとにレビューを出す Stop hook は
+     `security-guidance` plugin 由来だった
+   - **ユーザー設定の hook**(`~/.claude/settings.json` の `hooks`): 案件からは外せない。止めるならグローバル
+     hook の冒頭で案件を見分けて抜ける
+     (`head -1 "$CLAUDE_PROJECT_DIR/CLAUDE.md" | grep -q project-skeleton && exit 0`)。`~/.claude` は
+     マシンごとに別なので、両方のマシンに入れる
+   - 案件の `disableAllHooks: true` は使わない(案件の hook も止まる)
+5. **自動実行**(cron・CI)で案件の設定だけにしたいときは `claude -p --setting-sources project,local`

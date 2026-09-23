@@ -1,0 +1,389 @@
+<meta charset="utf-8">
+<title>project-skeleton</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Murecho:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+:root{
+  --ground:#F2F4F6; --surface:#FFFFFF; --sunken:#E7EBEF; --ink:#1B2430; --ink-2:#4A5563; --ink-3:#6B7684;
+  --line:#D5DBE1; --accent:#1F6F8B; --accent-soft:#DCEBF1; --machine:#9A6412; --machine-soft:#F5E9D4;
+  --code-bg:#1B2430; --code-ink:#E4E9EE; --code-dim:#8FA0B2; --ok:#2F7D4F;
+  --f-display:"Murecho","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#12171D; --surface:#1A2129; --sunken:#212A34; --ink:#E4E9EE; --ink-2:#B3BECA; --ink-3:#8E9AA8;
+    --line:#2E3945; --accent:#62B6D3; --accent-soft:#193441; --machine:#E1A94E; --machine-soft:#3A2D17;
+    --code-bg:#0B0F13; --code-ink:#E4E9EE; --code-dim:#7C8A99; --ok:#6CC08E;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#12171D; --surface:#1A2129; --sunken:#212A34; --ink:#E4E9EE; --ink-2:#B3BECA; --ink-3:#8E9AA8;
+  --line:#2E3945; --accent:#62B6D3; --accent-soft:#193441; --machine:#E1A94E; --machine-soft:#3A2D17;
+  --code-bg:#0B0F13; --code-ink:#E4E9EE; --code-dim:#7C8A99; --ok:#6CC08E;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.8;margin:0;padding-inline:16px;padding-block:0 64px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:880px;margin-inline:auto}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.35;margin:0}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.86em}
+p code,li code,td code{background:var(--sunken);padding:.08em .38em;border-radius:4px;word-break:break-all}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* header */
+header{padding-block:48px 36px;display:grid;gap:20px;border-bottom:1px solid var(--line)}
+.eyebrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12.5px;letter-spacing:.06em;color:var(--ink-3)}
+.chip{font-family:var(--f-mono);font-size:12px;letter-spacing:0;padding:2px 9px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);background:var(--surface)}
+.chip.v{border-color:var(--accent);color:var(--accent)}
+h1{font-size:clamp(34px,6vw,52px);font-weight:900;letter-spacing:-.01em}
+h1 .dim{color:var(--ink-3);font-weight:500}
+.thesis{font-family:var(--f-display);font-weight:700;font-size:clamp(19px,2.8vw,24px);line-height:1.6;max-width:36em}
+.lead{color:var(--ink-2);max-width:40em}
+.cmd{background:var(--code-bg);color:var(--code-ink);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:var(--f-mono);font-size:13.5px;line-height:1.75;white-space:pre}
+.cmd .c{color:var(--code-dim)}
+.cmd .p{color:var(--accent)}
+
+/* sections */
+section{padding-block:44px 8px;display:grid;gap:18px}
+.sec-label{font-size:12.5px;letter-spacing:.14em;color:var(--accent);font-weight:700}
+h2{font-size:clamp(23px,3.4vw,29px);font-weight:700}
+.body{color:var(--ink-2);max-width:42em}
+
+/* problem */
+.pain{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.pain div{background:var(--surface);padding:16px 18px;display:grid;gap:4px}
+.pain b{font-family:var(--f-display);font-size:17px}
+.pain span{color:var(--ink-2);font-size:14.5px;line-height:1.7}
+
+/* strengths */
+.strengths{display:grid;grid-template-columns:repeat(2,1fr);gap:28px 36px;margin-top:6px}
+.st{display:grid;gap:8px;align-content:start;padding-top:14px;border-top:2px solid var(--ink)}
+.st h3{font-size:18.5px;font-weight:700}
+.st p{color:var(--ink-2);font-size:15px;line-height:1.8}
+.st .by{font-size:12.5px;color:var(--ink-3);line-height:1.6}
+.tag{display:inline-block;font-size:11.5px;letter-spacing:.06em;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:6px;vertical-align:2px}
+.tag.m{background:var(--machine-soft);color:var(--machine)}
+.tag.h{background:var(--accent-soft);color:var(--accent)}
+
+/* day flow */
+.flow{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:10px;background:var(--surface);overflow:hidden}
+.step{padding:18px 16px 20px;display:grid;gap:10px;align-content:start;position:relative;border-right:1px solid var(--line)}
+.step:last-child{border-right:0}
+.step .when{font-size:12px;letter-spacing:.08em;color:var(--ink-3);font-weight:700}
+.step h3{font-size:16.5px}
+.step ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.step li{font-size:13.5px;line-height:1.6;color:var(--ink-2);padding-left:12px;border-left:3px solid var(--line)}
+.step li.m{border-left-color:var(--machine)}
+.step li.h{border-left-color:var(--accent)}
+.step li b{display:block;color:var(--ink);font-family:var(--f-mono);font-size:12.5px;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:18px;font-size:13px;color:var(--ink-3)}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* generated */
+.gen{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:grid;gap:6px;align-content:start}
+.box .path{font-family:var(--f-mono);font-size:12.5px;color:var(--accent);font-weight:600;word-break:break-all}
+.box p{font-size:14px;line-height:1.7;color:var(--ink-2)}
+
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.65}
+th{font-size:12.5px;letter-spacing:.06em;color:var(--ink-3);font-weight:700;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.no{font-family:var(--f-mono);color:var(--accent);font-weight:600;white-space:nowrap}
+td.new::after{content:"1.1.0";font-family:var(--f-mono);font-size:10.5px;margin-left:8px;color:var(--machine);border:1px solid var(--machine);border-radius:3px;padding:0 4px;vertical-align:1px}
+
+/* checks */
+.checks{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.ck{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:4px}
+.ck .n{font-family:var(--f-mono);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ck .n small{font-size:14px;color:var(--ok);margin-left:6px}
+.ck .l{font-size:13.5px;color:var(--ink-2);line-height:1.6}
+
+/* timeline */
+.tl{display:grid;gap:0;border-left:2px solid var(--line);margin-left:6px}
+.tl .it{position:relative;padding:0 0 22px 22px;display:grid;gap:4px}
+.tl .it::before{content:"";position:absolute;left:-7px;top:8px;width:12px;height:12px;border-radius:50%;background:var(--ground);border:2px solid var(--ink-3)}
+.tl .it.done::before{background:var(--accent);border-color:var(--accent)}
+.tl .it:last-child{padding-bottom:0}
+.tl .d{font-family:var(--f-mono);font-size:12.5px;color:var(--ink-3)}
+.tl h3{font-size:17px}
+.tl p{font-size:14.5px;color:var(--ink-2)}
+
+.next{background:var(--surface);border:1px dashed var(--machine);border-radius:12px;padding:22px 20px;display:grid;gap:18px}
+.draft{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--machine);background:var(--machine-soft);border-radius:4px;padding:2px 9px;justify-self:start}
+.shift{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+.shift div{padding:12px 14px;border-radius:8px;font-size:14.5px;line-height:1.65}
+.shift .from{background:var(--sunken);color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--ink-3)}
+.shift .to{background:var(--accent-soft);color:var(--ink);font-weight:700}
+.shift .ar{font-family:var(--f-mono);color:var(--ink-3)}
+.rule{border-left:4px solid var(--accent);padding:10px 14px;background:var(--ground);font-family:var(--f-display);font-weight:700;font-size:16.5px;line-height:1.6}
+.rule small{display:block;font-family:var(--f-body);font-weight:400;font-size:13.5px;color:var(--ink-2);margin-top:4px}
+.mech{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.mech div{display:grid;gap:4px;align-content:start;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:var(--ground)}
+.mech b{font-family:var(--f-display);font-size:15.5px}
+.mech span{font-size:13.5px;color:var(--ink-2);line-height:1.65}
+.mech .sub{grid-column:span 1}
+.promo{overflow-x:auto}
+.promo table{min-width:480px}
+.open{display:grid;gap:6px;font-size:14px;color:var(--ink-2)}
+.open b{color:var(--ink)}
+@media (max-width:760px){.shift{grid-template-columns:1fr}.shift .ar{justify-self:center;transform:rotate(90deg)}.mech{grid-template-columns:1fr}}
+footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 18px}
+
+@media (max-width:760px){
+  .pain,.gen,.checks{grid-template-columns:1fr}
+  .strengths{grid-template-columns:1fr;gap:24px}
+  .flow{grid-template-columns:1fr}
+  .step{border-right:0;border-bottom:1px solid var(--line)}
+  .step:last-child{border-bottom:0}
+  header{padding-block:32px 28px}
+}
+@media (min-width:761px) and (max-width:900px){
+  .flow{grid-template-columns:repeat(2,1fr)}
+  .step:nth-child(2){border-right:0}
+  .step:nth-child(-n+2){border-bottom:1px solid var(--line)}
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">
+    <span class="chip v">v1.2.0</span>
+    <span class="chip">Claude Code 専用</span>
+    <span class="chip">python3 標準ライブラリのみ</span>
+  </div>
+  <h1>project-skeleton</h1>
+  <p class="thesis">新しい案件を、初日から「運用の型」が揃った状態で始める。</p>
+  <p class="lead">タスク管理・作業領域・概要資料・環境情報・設計書・Claude Code の指示と仕組みを、1 コマンドで同じ形に生成するスケルトンです。書いた決まりは hook と検査で機械的に効かせます。初日は拾うだけで済み、作業の中で出た決定・未決・あとでやることは、どれも置き場へ落ちるまで追いかけます。</p>
+  <div class="cmd"><span class="c"># Claude Code に「○○のプロジェクトを作って」と頼むと、new-project skill がこれを実行する</span>
+<span class="p">$</span> python3 scripts/init.py 新案件 --name "新案件" --slug new-case
+<span class="c">  → build.py → git init + 初回コミット → check_skeleton.py まで一気に通す</span></div>
+</header>
+
+<section>
+  <div class="sec-label">解決する課題</div>
+  <h2>案件ごとに手で揃えると、ばらつき、抜け、古びる</h2>
+  <p class="body">これまでの案件で確立した運用は、フォルダ構成・スクリプト・Claude Code の設定に散らばっていました。新しい案件のたびに前の案件から写すと、次の 3 つが起きます。</p>
+  <div class="pain">
+    <div><b>ばらつく</b><span>案件ごとに置き場やタスクの書式が少しずつ違い、Claude Code も人も毎回読み解き直す。</span></div>
+    <div><b>抜ける</b><span>hook やガードの写し忘れで、「書いてあるのに守られない」決まりが生まれる。</span></div>
+    <div><b>古びる</b><span>設計書や概要資料が実装に追いつかず、読んだ人が事実と違うことを信じる。</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-label">強み</div>
+  <h2>決まりを「書くだけ」で終わらせない</h2>
+  <p class="body"><span class="tag m">機械</span>は hook・スクリプト・検査で自動的に効くもの、<span class="tag h">手順</span>は Claude Code が skill として読んで実行するものです。</p>
+  <div class="strengths">
+    <div class="st">
+      <h3>1 コマンドで、毎回同じ形</h3>
+      <p>生成・タスク一覧の初期化・git の初回コミット・構成の検査までを 1 回で通します。既存フォルダには <code>--merge</code> で足りないファイルだけを追加し、既存ファイルには触れません。</p>
+      <p class="by"><span class="tag m">機械</span>init.py ／ 外部依存なし</p>
+    </div>
+    <div class="st">
+      <h3>置き場の決まりを hook が止める</h3>
+      <p>一時ファイルは <code>.work/一時/日付_用途/</code> にだけ置く決まりです。ルート直下や <code>.work/</code> 直下への書き込みは、書く前に hook が止めます。</p>
+      <p class="by"><span class="tag m">機械</span>PreToolUse の work_area_guard</p>
+    </div>
+    <div class="st">
+      <h3>セッション開始時に現在地を渡す</h3>
+      <p>毎セッションの最初に、open タスクの件数・概要資料の最終更新日・要確認の設計書の本数を自動で注入します。Claude Code は読み回らずに現在地から始められます。</p>
+      <p class="by"><span class="tag m">機械</span>SessionStart の session_context</p>
+    </div>
+    <div class="st">
+      <h3>設計書が実装に置いていかれない</h3>
+      <p>認証やスキーマなどを変えると、一緒に直すべき設計書を hook がその場で示します。直すときは「矛盾しないか」ではなく「この変更で何が決まったか」を 1 行拾い、決めずに仮置きしたものは課題にします。各設計書は鮮度の情報を持ち、未記入・期限切れ・対象ソースの変更を分けて知らせます。</p>
+      <p class="by"><span class="tag m">機械</span>design_docs_reminder・docs_freshness　<span class="tag h">手順</span>sync-design-docs・audit-design-docs</p>
+    </div>
+    <div class="st">
+      <h3>影響の対応表は 1 つだけ</h3>
+      <p>「変えたもの → 一緒に直す文書」の表を設計書の索引に 1 つだけ持ちます。hook・検査・skill が同じ表を読むので、仕組みごとに対応がずれません。</p>
+      <p class="by"><span class="tag m">機械</span>impact_map.py が表を直接読む</p>
+    </div>
+    <div class="st">
+      <h3>秘密と共有物を分ける</h3>
+      <p>URL・ID・パスワードは Git 管理外の <code>環境情報.md</code> と <code>.env</code> にだけ書きます。Git に載る文書にパスワードらしき値・資格情報入りの URL・既知のトークン形式があれば、検査が値を出さずに指摘します。</p>
+      <p class="by"><span class="tag m">機械</span>check_skeleton.py の秘密検出　<span class="tag h">手順</span>update-env-info</p>
+    </div>
+    <div class="st">
+      <h3>何も落とさない</h3>
+      <p>作業中に出た決定・未決・あとでやることは、必ず「反映済・タスク・未決」のどれかに落とします。打合せ記録の各行に落ち先を書き、未決の正本は課題に一本化しました。落ちていないものがあるときだけ、ターンの終わりに 1 回だけ拾い直させます。</p>
+      <p class="by"><span class="tag m">機械</span>pickup_cue・pickup_check・check_drops　<span class="tag h">手順</span>pickup</p>
+    </div>
+    <div class="st">
+      <h3>初日は拾うだけ、ハーネスは後から育てる</h3>
+      <p>フェーズ(立ち上げ・開発・運用)で厳しさが変わり、立ち上げ期は設計書が未記入のままでも止めません。ハーネスは最初から固めず、作業中に生まれた候補を台帳に書き、承認されたものだけを定義します。</p>
+      <p class="by"><span class="tag m">機械</span>phase.py・check_harness　<span class="tag h">手順</span>harness</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-label">1 日の流れで効く仕組み</div>
+  <h2>いつ、何が働くか</h2>
+  <div class="legend"><span><i style="background:var(--machine)"></i>機械(hook・スクリプト)</span><span><i style="background:var(--accent)"></i>手順(skill)</span></div>
+  <div class="flow">
+    <div class="step">
+      <div class="when">セッション開始</div>
+      <h3>現在地を受け取る</h3>
+      <ul>
+        <li class="m"><b>session_context</b>フェーズ・open タスク・設計書の要確認と未記入・拾いもの・マシン側の混入を 8 行以内で注入</li>
+        <li class="h"><b>CLAUDE.md §7</b>作業の種類に応じて読む設計書を絞る</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="when">作業の前</div>
+      <h3>置き場を決める</h3>
+      <ul>
+        <li class="h"><b>work-placement</b>紐づくタスクを確定してから手を動かす</li>
+        <li class="h"><b>scratch</b>一時的な出力は日付フォルダへ</li>
+        <li class="m"><b>work_area_guard</b>決まりに反する置き場は書く前に止める</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="when">変更したとき</div>
+      <h3>その場で追随する</h3>
+      <ul>
+        <li class="m"><b>design_docs_reminder</b>影響する設計書の候補を 1 回だけ示す</li>
+        <li class="h"><b>sync-design-docs</b>ソースを読んでから設計書と改訂履歴を直す</li>
+        <li class="h"><b>update-overview / update-env-info</b>概要資料と環境情報も同じ作業で</li>
+        <li class="m"><b>pickup_check</b>ターンの終わりに落ち先の無いものを見つけ、1 回だけ拾い直させる</li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="when">節目</div>
+      <h3>まとめて点検する</h3>
+      <ul>
+        <li class="h"><b>audit-design-docs</b>打合せ・タスク・ソースと突き合わせて見直しリストを作る</li>
+        <li class="m"><b>docs_freshness / check_drops</b>設計書の鮮度と、落ち先の無い行・ID の不在を一覧にする</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-label">生成されるもの</div>
+  <h2>案件フォルダの中身</h2>
+  <div class="gen">
+    <div class="box"><div class="path">CLAUDE.md ＋ .claude/rules</div><p>絶対制約・セッション開始時の手順・読む設計書の表。rules は作業領域・文書管理・秘密の 3 本。先頭に生成元の版番号が入る。</p></div>
+    <div class="box"><div class="path">.claude/skills(9 本)</div><p>work-placement ／ scratch ／ task ／ update-overview ／ update-env-info ／ sync-design-docs ／ audit-design-docs ／ pickup ／ harness</p></div>
+    <div class="box"><div class="path">.claude/hooks(5 本)</div><p>SessionStart の文脈注入、PreToolUse の置き場ガード、PostToolUse の設計書追随、UserPromptSubmit の手がかり記録、Stop の拾い直し。テストケース付き。</p></div>
+    <div class="box"><div class="path">.work/</div><p>Git 管理外の作業領域。証跡・機密・一時・_bk の 4 枠。</p></div>
+    <div class="box"><div class="path">docs/案件/01_タスク管理</div><p>Markdown 1 枚 = 1 タスク。起票・クローズ・画面管理のスクリプトと、一覧を切り替えて見る index.html。</p></div>
+    <div class="box"><div class="path">docs/プロジェクト概要.html</div><p>目的・思想・現在地・将来対応・構成図の 1 枚資料。マーカーで部分更新し、タスク件数は自動で反映。</p></div>
+    <div class="box"><div class="path">docs/設計書</div><p>01〜09 の 9 本に、判断の記録(decisions)と手順書(runbook)。索引と影響マップは README に。</p></div>
+    <div class="box"><div class="path">環境情報.md ／ 案件情報.md</div><p>URL・ユーザー・関係者・日程の正本。どちらも Git 管理外。</p></div>
+    <div class="box"><div class="path">scripts/</div><p>構成を検査する check_skeleton.py と、設計書の鮮度を出す docs_freshness.py。</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-label">設計書 9 本</div>
+  <h2>文書のセットを固定し、入口を絞る</h2>
+  <p class="body">文書を増やすほど探す手間が戻ってくるため、本数を 9 本に固定しました。作業の種類ごとに読む文書が決まっています。</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>#</th><th>文書</th><th>何の正本か</th><th>いつ読むか</th></tr></thead>
+      <tbody>
+        <tr><td class="no">01</td><td>overview</td><td>目的・利用者ロール・スコープ・成功条件・用語</td><td>機能の要否やスコープを判断するとき</td></tr>
+        <tr><td class="no">02</td><td>architecture</td><td>構成・技術・データの流れと信頼境界・環境</td><td>構成変更・DB・外部連携</td></tr>
+        <tr><td class="no new">03</td><td>ステークホルダー</td><td>関係者ロール・判断権限・確認の取り方・NG 事項</td><td>確認依頼や顧客向けの文面</td></tr>
+        <tr><td class="no new">04</td><td>設計原則</td><td>原則・緊張関係・迷ったときの決め方・方針の変遷</td><td>設計判断や、否定済みの旧案が再浮上したとき</td></tr>
+        <tr><td class="no new">05</td><td>セキュリティ設計</td><td>守る対象・認証と権限・データ格付け・ログ・鍵の所在</td><td>認証・権限・ログ・外部通信・秘密</td></tr>
+        <tr><td class="no new">06</td><td>品質設計</td><td>重大度・機械が見ているもの・不変条件・テスト方針</td><td>レビュー・テスト・hook・CI</td></tr>
+        <tr><td class="no new">07</td><td>開発運用設計</td><td>ブランチ・変更の流れ・マイグレーション・デプロイ・戻し</td><td>デプロイや戻しの前</td></tr>
+        <tr><td class="no new">08</td><td>利用者運用設計</td><td>業務フロー・権限の付与と剥奪・障害時の利用者向け文面</td><td>利用者向けの文面や問い合わせ対応</td></tr>
+        <tr><td class="no new">09</td><td>非機能と縮退</td><td>目標・容量・バックアップと復旧・縮退の段階・費用</td><td>性能・容量・監視・障害</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-label">検査で自己保証する</div>
+  <h2>スケルトン自身も、生成物も、検査が通ることを確かめている</h2>
+  <div class="checks">
+    <div class="ck"><div class="n">272<small>fail 0</small></div><div class="l">スケルトン自身の検査項目。hook のテスト 241 件・単体テスト 56 件・init のテスト 18 件を含む</div></div>
+    <div class="ck"><div class="n">317<small>fail 0</small></div><div class="l">生成した案件フォルダの検査項目。設計書・落ち先・秘密・ハーネス・フェーズ</div></div>
+    <div class="ck"><div class="n">4<small>すべて検知</small></div><div class="l">わざと壊して確かめた異常系。鮮度情報の欠落・索引漏れ・秘密・解決できない参照</div></div>
+  </div>
+  <p class="body" style="font-size:13.5px">数値は v1.2.0 の end-to-end 検証の結果です。</p>
+</section>
+
+<section>
+  <div class="sec-label">v1.2.0 で入れたもの</div>
+  <h2>進めながら、ドキュメントとハーネスが揃っていく</h2>
+  <div class="next">
+    <span class="draft">v1.2.0 で実装済み</span>
+    <p class="body">案件は少しずつ情報が出てきて、ブレストしながら進みます。最初から枠を埋めさせる固いルールは、初動の障壁になります。そこで、作業の副産物としてドキュメントとハーネスが育ち、そのうえで何も落とさない形にしました。</p>
+    <div class="shift">
+      <div class="from">最初に枠を埋めてから進む</div>
+      <div class="ar">→</div>
+      <div class="to">進めながら拾って、置き場へ流す</div>
+    </div>
+    <div class="rule">固い決まりは 1 つだけ。作業中に出たものは、必ず「反映済」「タスク」「未決」のどれかに落とす。<small>空欄や未決の多さでは止めない。止めるのは、拾ったのにどこにも落ちていないときだけ。</small></div>
+    <div class="mech">
+      <div><b>拾う</b><span>作業の区切りで、その回に出た決定・未決・あとでやること・ハーネスの候補を Claude が拾う。</span></div>
+      <div><b>流す</b><span>設計書の該当節、未決、タスクのどれかへ。置き場が決まらないものは未決でよい。</span></div>
+      <div><b>昇格させる</b><span>ハーネスは最初から定義しない。候補を提案し、承認されたものだけを定義する。</span></div>
+      <div><b>フェーズで厳しくする</b><span>立ち上げ期は拾うだけ。開発期から設計書の追随を効かせる。</span></div>
+      <div><b>放置を見つける</b><span>節目に打合せ・決定・未決とタスクを突き合わせ、落ち先の無いものを一覧にする。</span></div>
+      <div><b>観点は「目」として使う</b><span>権限・秘密・品質ゲートなどの観点は記入欄にしない。Claude が漏れに気づくために使う。</span></div>
+    </div>
+    <div class="promo">
+      <table>
+        <thead><tr><th>作業中に起きたこと</th><th>ハーネスの候補</th></tr></thead>
+        <tbody>
+          <tr><td>同じ手順を 2 回やった</td><td>skill</td></tr>
+          <tr><td>「それはしないで」と言われた</td><td>permissions の deny、または止める hook</td></tr>
+          <tr><td>同じ指摘が 2 回出た</td><td>rules・CLAUDE.md の制約</td></tr>
+          <tr><td>毎回最初に同じことを調べている</td><td>セッション開始時の文脈注入</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="open">
+      <b>実地の再確認(v1.1.0 と同じ依頼を Claude Code に実行させた結果)</b>
+    </div>
+    <div class="promo">
+      <table>
+        <thead><tr><th>依頼</th><th>v1.1.0</th><th>v1.2.0</th></tr></thead>
+        <tbody>
+          <tr><td>キックオフの記録</td><td>ターンの上限で打ち切り。決定 1 件が落ちた</td><td>最終報告まで完了。決定 3 件を 01 §3 へ、未決 2 件を課題へ。落ち先の警告 0</td></tr>
+          <tr><td>ログインの雛形(開発期)</td><td>設計書に何も残らなかった</td><td>05 §3 に「社内 SSO。連携方式は（未決 SPEC-02）」が入った</td></tr>
+          <tr><td>skill の起動</td><td>2 本が権限で拒否された</td><td>拒否なし(allowed-tools が原因と特定して削除)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-label">現在地</div>
+  <h2>これまでと、これから</h2>
+  <div class="tl">
+    <div class="it done"><div class="d">2026-09-23 ／ v1.0.0</div><h3>初版</h3><p>タスク管理・作業領域・概要資料・環境情報・skill 5 本・hook 2 本を揃えた。</p></div>
+    <div class="it done"><div class="d">2026-09-23 ／ v1.1.0</div><h3>設計書を常に最新に保つ仕組み</h3><p>設計書 03〜09 と runbook、skill 2 本、設計書追随の hook、鮮度チェック、設計書の検査を追加した。</p></div>
+    <div class="it done"><div class="d">2026-09-24 ／ v1.2.0</div><h3>進めながら揃い、何も落とさない</h3><p>フェーズ、落ち先と課題への一本化、区切りで拾う hook、ハーネスの台帳と昇格、案件で揃う範囲の明確化。上の「v1.2.0 で入れたもの」を参照。</p></div>
+    <div class="it"><div class="d">次</div><h3>各マシンへのグローバル配備</h3><p>どのセッションからでも「プロジェクトを作って」で呼べるようにする。手順は SETUP.md。</p></div>
+    <div class="it"><div class="d">次</div><h3>既存の案件への適用</h3><p><code>--merge</code> で新しいファイルを配り、差分が出たものは手で取り込む。手順は CHANGELOG の「既存プロジェクトへの適用」。</p></div>
+    <div class="it"><div class="d">いずれ</div><h3>公開</h3><p>リポジトリは現在非公開。個人名・ホスト名・顧客名を書かない前提で作っている。</p></div>
+  </div>
+</section>
+
+<footer>
+  <span>project-skeleton v1.2.0</span>
+  <span>正本はリポジトリの docs/プロダクト概要.html</span>
+</footer>
+
+</div>

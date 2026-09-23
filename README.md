@@ -16,23 +16,29 @@ project-skeleton/
 ├── VERSION                   semver。生成物の CLAUDE.md 先頭に埋め込まれる
 ├── scripts/
 │   ├── init.py               template → 案件フォルダを生成(--merge で既存へ適用)
-│   ├── check.py              スケルトン自身の検査
+│   ├── check.py              スケルトン自身の検査(template の単体テスト・hook テストも回す)
+│   ├── tests/                init.py の単体テスト
 │   ├── install-global.sh     ~/.claude/skills/new-project にリンク(Linux / macOS)
 │   └── install-global.ps1    同上(Windows、ジャンクション)
 └── template/                 生成元。プレースホルダ {{…}} を init.py が埋める
     ├── CLAUDE.md / README.md / CHANGELOG.md / _gitignore / .gitattributes / .editorconfig / .env.example
     ├── 環境情報.md / 案件情報.md           (生成先では .gitignore 対象)
-    ├── .claude/settings.json / rules/(3 本)
+    ├── .claude/settings.json / rules/(3 本)/ ハーネス台帳.md
     │   ├── skills/                        work-placement / scratch / task / update-overview / update-env-info /
-    │   │                                  sync-design-docs / audit-design-docs(7 本)
+    │   │                                  sync-design-docs / audit-design-docs / pickup / harness(9 本)
     │   └── hooks/                         session_context(SessionStart)/ work_area_guard(PreToolUse)/
-    │                                      design_docs_reminder(PostToolUse)+ impact_map.py + tests/
+    │                                      design_docs_reminder(PostToolUse)/ pickup_cue(UserPromptSubmit)/
+    │                                      pickup_check(Stop)+ phase.py・drops.py・pickup_state.py・
+    │                                      impact_map.py・machine_context.py + tests/
     ├── .work/                             作業領域(証跡・機密・一時・_bk)
     ├── scripts/check_skeleton.py          生成先の検査(--overview / --docs)
-    ├── scripts/docs_freshness.py          設計書の鮮度(メタ行の日付・対象・sha から要確認を出す)
+    ├── scripts/docs_freshness.py          設計書の鮮度(要確認と未記入)
+    ├── scripts/check_drops.py             落ち先の検査(打合せ記録・課題・確認依頼の落ち先なし・ID 不在)
+    ├── scripts/tests/                     単体テスト(run_tests.py)
     └── docs/
         ├── プロジェクト概要.html          マーカー付きの 1 枚概要
-        ├── 案件/01_タスク管理/            new.py / close.py / screen.py / build.py / areas.json / index.html
+        ├── 案件/01_タスク管理/            new.py / close.py / screen.py / build.py / areas.json / index.html /
+        │                                  README.md(要約)・詳細仕様.md
         ├── 案件/02_打合せ/ ・ 案件/確認依頼一覧.md
         └── 設計書/                         01-overview 〜 09-非機能と縮退 / decisions(ADR)/ runbook/
                                             README.md の影響マップ(変えたもの → 一緒に直す正本)を hook・検査が読む
@@ -70,7 +76,10 @@ python3 <生成先>/scripts/check_skeleton.py     # 生成先(同じ形式。--o
 ## 生成されるプロジェクトの要点
 
 - `CLAUDE.md` 先頭に `<!-- project-skeleton vX.Y.Z generated YYYY-MM-DD -->`。どの版から作ったかが分かる
-- `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task / sync-design-docs / audit-design-docs)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード・設計書追随リマインド)
+- `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task / sync-design-docs / audit-design-docs / pickup / harness)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード・設計書追随・依頼文の手がかり・区切りの拾い)
+- フェーズ(立ち上げ / 開発 / 運用)で厳しさが変わる。表は `python3 .claude/hooks/phase.py --table`、切り替えは `--set`。立ち上げ期は拾うだけ
+- 作業中に出た決定・未決・あとでやることは「反映済・タスク・未決」のどれかに落とす(打合せ記録の各行に落ち先、未決の正本は課題 md)。ハーネスは `.claude/ハーネス台帳.md` に候補として書き、承認後に定義する
+- skill に `allowed-tools` を書かない(未信頼のワークスペースで起動が拒否されるため。`check.py` が見る)
 - `.work/` は git 管理外の作業領域。証跡・機密・一時・_bk の 4 枠
 - `docs/案件/01_タスク管理/` は Markdown ファイル 1 枚 = 1 タスク。`build.py` が `data.js` と概要 HTML のスナップショットを更新
 - `環境情報.md` `案件情報.md` `.env` は `.gitignore` 対象。公開しない情報はここに書く

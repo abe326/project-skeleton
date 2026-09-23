@@ -45,6 +45,44 @@ AREAS_JSON = Path("docs/案件/01_タスク管理/areas.json")
 BUILD_PY = Path("docs/案件/01_タスク管理/build.py")
 CHECK_PY = Path("scripts/check_skeleton.py")
 
+# --desc / --owner を省いたときの置換値（プレースホルダは増やさず、空欄を「未記入」と読めるようにする）
+DESC_UNSET = "（未記入: 何の案件かを 1 行で書く）"
+OWNER_UNSET = "（未定）"
+
+# --merge の比較から外す生成物。SKIP は比較しない、MASK は両側の BEGIN:x〜END:x の中身を空にしてから比べる
+GENERATED_SKIP = {"docs/案件/01_タスク管理/data.js"}
+GENERATED_MASK = {
+    "docs/プロジェクト概要.html": ["task-snapshot", "updated", "open-issues", "milestones", "recent-decisions"],
+}
+# differs のうち「仕組み」（取り込み推奨）に分けるもの。それ以外は「内容」
+MECHANISM_PREFIXES = (".claude/", "scripts/")
+MECHANISM_TASK_DIR = "docs/案件/01_タスク管理/"
+
+NEXT_STEPS_NEW = """\
+== 次にやること（立ち上げフェーズ。最初はこの 4 つだけでよい）
+  1. 打合せ・会話で出たことを記録する   docs/案件/02_打合せ/YYYYMMDD_タイトル.md（Claude に「打合せを記録して」でよい）
+  2. 決まっていないことを課題にする     python3 docs/案件/01_タスク管理/new.py 横断 "…" --kind 課題
+  3. 目的とスコープを 1 行ずつ書く      docs/設計書/01-overview.md §1・§3
+  4. 現在地を 1 行書く                  docs/プロジェクト概要.html「3. 現在地」（Claude に「現在地を直して」でよい）
+
+  今は書かなくてよいもの（必要になったら Claude が案内する）:
+    環境情報.md / 設計書 02〜09 / runbook / ADR / 画面（screens） / areas.json / CLAUDE.md §5・§6 / ハーネス台帳"""
+NEXT_STEPS_UNSET_HEAD = "  空欄のまま残したもの:"
+NEXT_STEPS_UNSET_DESC = "    - 案件の説明（--desc なし）: CLAUDE.md §1・README.md・概要 HTML・01-overview.md §1 に「（未記入…）」"
+NEXT_STEPS_UNSET_OWNER = "    - 担当（--owner なし）: README.md・概要 HTML の「管理」・案件情報.md §1 に「（未定）」"
+NEXT_STEPS_TAIL = """\
+  初めて Claude Code で開くとき: 対話起動（claude）でフォルダを開き、ワークスペースを信頼する（SETUP.md §8）
+  * 他マシンと同期しているフォルダなら、同期が完了してから git を触る"""
+NEXT_STEPS_MERGE = """\
+== 次にやること（既存プロジェクトへの適用）
+  1. 上の differs のうち「仕組み」を取り込む（「内容」は案件側で書き換え済みのはず。必要な節だけ）
+  2. フェーズを設定する: python3 .claude/hooks/phase.py --set <立ち上げ|開発|運用>
+     （設定しないと立ち上げ扱いになり、開発中の案件では設計書追随が弱まる）
+  3. スケルトンの CHANGELOG.md の「既存プロジェクトへの適用」の手順に沿って残りを移す
+  4. python3 scripts/check_skeleton.py で fail=0 を確かめる
+  初めて Claude Code で開くとき: 対話起動（claude）でフォルダを開き、ワークスペースを信頼する（SETUP.md §8）
+  * 他マシンと同期しているフォルダなら、同期が完了してから git を触る"""
+
 
 # ---------------------------------------------------------------------------
 # 補助
@@ -104,6 +142,65 @@ def parse_areas(spec: str) -> dict[str, str]:
             raise SystemExit(f"エラー: 領域名が空です: {item!r}")
         result[name] = prefix
     return result
+
+
+def mask_markers(text: str, names: list[str]) -> str:
+    """BEGIN:x〜END:x の中身を空にする（build.py が書き換える欄を比較から外す）。"""
+    for name in names:
+        text = re.sub(rf"(<!--\s*BEGIN:{re.escape(name)}\s*-->).*?(<!--\s*END:{re.escape(name)}\s*-->)",
+                      r"\1\2", text, flags=re.S)
+    return text
+
+
+def same_content(rel_str: str, existing: bytes, rendered: bytes) -> bool:
+    if existing == rendered:
+        return True
+    names = GENERATED_MASK.get(rel_str)
+    if not names:
+        return False
+    try:
+        return mask_markers(existing.decode("utf-8"), names) == mask_markers(rendered.decode("utf-8"), names)
+    except UnicodeDecodeError:
+        return False
+
+
+def is_mechanism(rel_str: str) -> bool:
+    if rel_str.startswith(MECHANISM_PREFIXES):
+        return True
+    return rel_str.startswith(MECHANISM_TASK_DIR) and (rel_str.endswith(".py") or rel_str.endswith("/index.html"))
+
+
+def print_differs(differs: list[str], generated: int, indent: str = "  ") -> None:
+    """differs を「仕組み」と「内容」に分けて出す。"""
+    mech = [p for p in differs if is_mechanism(p)]
+    content = [p for p in differs if not is_mechanism(p)]
+    if mech:
+        print(f"{indent}template と異なる既存ファイル・仕組み（取り込み推奨）({len(mech)} 件):")
+        for p in mech:
+            print(f"{indent}  ~ {p}")
+    if content:
+        print(f"{indent}template と異なる既存ファイル・内容（案件側で書き換え済みのはず。必要な節だけ）({len(content)} 件):")
+        for p in content:
+            print(f"{indent}  ~ {p}")
+    if generated:
+        print(f"{indent}比較から外した生成物: {generated} 件")
+
+
+def print_next_steps(mode: str, args: argparse.Namespace, differs: list[str]) -> None:
+    print()
+    if mode == "merge":
+        print(NEXT_STEPS_MERGE)
+        return
+    print(NEXT_STEPS_NEW)
+    if not args.desc or not args.owner:
+        print(NEXT_STEPS_UNSET_HEAD)
+        if not args.desc:
+            print(NEXT_STEPS_UNSET_DESC)
+        if not args.owner:
+            print(NEXT_STEPS_UNSET_OWNER)
+    if differs:
+        print("  上の differs を確認し、必要なら template の変更を手で取り込む")
+    print(NEXT_STEPS_TAIL)
 
 
 def run(cmd: list[str], cwd: Path, check: bool = False) -> subprocess.CompletedProcess:
@@ -168,9 +265,9 @@ def main() -> int:
     values = {
         "{{PROJECT_NAME}}": args.name,
         "{{PROJECT_SLUG}}": slug,
-        "{{PROJECT_DESC}}": args.desc,
+        "{{PROJECT_DESC}}": args.desc or DESC_UNSET,
         "{{CREATED}}": created_date,
-        "{{OWNER}}": args.owner,
+        "{{OWNER}}": args.owner or OWNER_UNSET,
         "{{SKELETON_VERSION}}": version,
     }
     areas_to_add = parse_areas(args.areas) if args.areas else {}
@@ -186,6 +283,7 @@ def main() -> int:
     created: list[str] = []
     skipped: list[str] = []
     differs: list[str] = []
+    generated_skipped = 0
     warnings: list[str] = []
     dirs_to_make: list[Path] = []
 
@@ -222,9 +320,11 @@ def main() -> int:
 
             if dst.exists():
                 skipped.append(rel_str)
-                if text_mode:
+                if rel_str in GENERATED_SKIP:
+                    generated_skipped += 1
+                elif text_mode:
                     try:
-                        if dst.read_bytes() != rendered:
+                        if not same_content(rel_str, dst.read_bytes(), rendered):
                             differs.append(rel_str)
                     except OSError:
                         pass
@@ -243,10 +343,8 @@ def main() -> int:
             print(f"  + {p}")
         if skipped:
             print(f"既存のため保持 ({len(skipped)} 件)")
-        if differs:
-            print(f"template と内容が異なる既存ファイル ({len(differs)} 件):")
-            for p in differs:
-                print(f"  ~ {p}")
+        print(f"differs={len(differs)}")
+        print_differs(differs, generated_skipped, indent="")
         for w in warnings:
             print(f"警告: {w}")
         print()
@@ -356,23 +454,11 @@ def main() -> int:
         print("  作成:")
         for p in created:
             print(f"    + {p}")
-    if differs:
-        print("  template と内容が異なる既存ファイル(必要なら手で取り込む):")
-        for p in differs:
-            print(f"    ~ {p}")
+    print_differs(differs, generated_skipped, indent="  ")
     for w in warnings:
         print(f"  警告: {w}")
 
-    print()
-    print("== 次にやること")
-    print("  1. 環境情報.md / 案件情報.md を埋める(どちらも .gitignore 対象)")
-    print("  2. docs/プロジェクト概要.html の目的・方針・フェーズを埋める")
-    print("  3. CLAUDE.md §1 の 3 行と Global Constraints をプロジェクト固有の内容にする")
-    print("  4. docs/案件/01_タスク管理/areas.json の領域を見直す(--areas で追加済みのものを含む)")
-    if differs:
-        print("  5. 上の differs を確認し、必要なら template の変更を手で取り込む")
-    print("  * 他マシンと同期しているフォルダなら、同期が完了してから git を触る")
-
+    print_next_steps("merge" if args.merge and dest_exists else "new", args, differs)
     return 0
 
 

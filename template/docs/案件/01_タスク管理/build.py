@@ -3,33 +3,43 @@
 build.py — open/ closed/ screens/ の *.md を走査して data.js を生成する
 
 Usage:
-  python3 build.py            # data.js を生成し、docs/プロジェクト概要.html のスナップショットを更新
+  python3 build.py            # data.js を生成し、docs/プロジェクト概要.html の自動欄を更新
   python3 build.py --check    # 何も書かずに検証だけ行う（警告 0 なら終了コード 0、あれば 1）
 
 生成物:
   data.js
-    window.TASKS   = [...]   タスク（open/ closed/）
+    window.TASKS   = [...]   タスク（open/ closed/）。due・decider を含む
     window.SCREENS = [...]   画面（screens/）。tasks は screens: を持つタスクからの逆引き
 
-  docs/プロジェクト概要.html（= ../../プロジェクト概要.html）
-    <!-- BEGIN:task-snapshot --> 〜 <!-- END:task-snapshot --> の内側だけを置換する。
-    ファイルやマーカーが無ければ警告のみで続行する。
+  docs/プロジェクト概要.html（= ../../プロジェクト概要.html）の自動欄（マーカーの内側だけを置換。手で編集しない）
+    task-snapshot     タスクの状況（課題は除き、期限列つき）
+    open-issues       決めてほしいこと（open の課題）
+    milestones        次の節目（ロードマップの時期が日付の行 + open の due）
+    recent-decisions  直近の決定（打合せ記録の決定行 + 閉じた課題の `## 決定`。.claude/hooks/drops.py を使う）
+    ファイルやマーカーが無い・drops.py を読めないときは注記だけ出して続行する（--check の警告数には数えない）。
+
+検証（警告。--check で exit 1）: ID 重複・必須欄・許可値・due の形式・未知の画面 ID。
+孤児の添付（open/ closed/ の `<ID>_…` で、同じフォルダに本体が無いもの）は警告行を出すが exit は変えない。
+今日の日付はテスト用に環境変数 CLAUDE_SKELETON_TODAY（YYYY-MM-DD）で上書きできる。
 """
 import datetime
 import html
 import json
+import os
 import re
 import sys
 from pathlib import Path
+
+sys.dont_write_bytecode = True
 
 BASE_DIR = Path(__file__).parent
 OPEN_DIR = BASE_DIR / "open"
 CLOSED_DIR = BASE_DIR / "closed"
 SCREENS_DIR = BASE_DIR / "screens"
 OUT_PATH = BASE_DIR / "data.js"
+ROOT = BASE_DIR.parent.parent.parent          # docs/案件/01_タスク管理 → 案件ルート
+HOOKS_DIR = ROOT / ".claude" / "hooks"
 SNAPSHOT_HTML = BASE_DIR.parent.parent / "プロジェクト概要.html"
-SNAPSHOT_BEGIN = "<!-- BEGIN:task-snapshot -->"
-SNAPSHOT_END = "<!-- END:task-snapshot -->"
 
 VALID_STATUS = {"未着手", "進行中", "方針確定", "確認待ち", "保留", "完了"}
 VALID_PRIORITY = {"最高", "高", "中", "低"}
@@ -37,6 +47,31 @@ VALID_KIND = {"タスク", "課題"}  # 分類（省略時はタスク）
 VALID_SCREEN_STATUS = {"未着手", "実装中", "確認待ち", "完了", "保留"}
 LIST_FIELDS = {"tags", "screens"}
 PRIORITY_RANK = {"最高": 0, "高": 1, "中": 2, "低": 3}
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+OPEN_ISSUES_MAX = 8
+MILESTONES_MAX = 5
+DECISIONS_MAX = 5
+
+
+def today() -> datetime.date:
+    s = os.environ.get("CLAUDE_SKELETON_TODAY", "").strip()
+    if DATE_RE.match(s):
+        try:
+            return datetime.date.fromisoformat(s)
+        except ValueError:
+            pass
+    return datetime.date.today()
+
+
+def parse_date(s: str) -> datetime.date | None:
+    s = (s or "").strip()
+    if not DATE_RE.match(s):
+        return None
+    try:
+        return datetime.date.fromisoformat(s)
+    except ValueError:
+        return None
 
 
 def parse_frontmatter(text: str) -> tuple[dict, str]:
@@ -101,7 +136,7 @@ def id_sort_key(item: dict) -> tuple:
     マッチしない場合は (id_string, 0) でフォールバック。
     """
     id_val = item.get("id", "")
-    m = re.match(r"^([A-Za-z]+)-?(\d+)$", id_val)
+    m = re.match(r"^([A-Za-z][A-Za-z0-9]*?)-?(\d+)$", id_val)
     if m:
         return (m.group(1).upper(), int(m.group(2)))
     return (id_val, 0)
@@ -116,7 +151,7 @@ def read_md_files(folder: Path):
             continue  # .gitkeep など隠しファイルはスキップ
         try:
             text = md_path.read_text(encoding="utf-8")
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
             print(f"⚠ 読み込み失敗 ({md_path.name}): {e}", file=sys.stderr)
             continue
         fields, body = parse_frontmatter(text)
@@ -143,6 +178,8 @@ def scan_folder(folder: Path, state: str) -> list[dict]:
             "kind":     fields.get("kind", "") or "タスク",
             "epic":     fields.get("epic", ""),
             "owner":    fields.get("owner", ""),
+            "due":      fields.get("due", ""),
+            "decider":  fields.get("decider", ""),
             "tags":     fields.get("tags", []),
             "screens":  fields.get("screens", []),
             "source":   fields.get("source", ""),
@@ -246,6 +283,9 @@ def validate_tasks(tasks: list[dict]) -> list[str]:
                 f"⚠ {label}: kind '{k}' は許可値外"
                 f"（許可: {'/'.join(sorted(VALID_KIND))}）"
             )
+        d = t.get("due", "")
+        if d and parse_date(d) is None:
+            warnings.append(f"⚠ {label}: due '{d}' は日付形式でない（YYYY-MM-DD の実在する日付。空でもよい）")
 
     return warnings
 
@@ -272,67 +312,251 @@ def validate_screens(screens: list[dict]) -> list[str]:
     return warnings
 
 
+def orphan_attachments() -> list[str]:
+    """open/・closed/ の `<ID>_…` の付随資料で、同じフォルダに本体（その ID のタスク md）が無いもの。"""
+    out = []
+    for folder in (OPEN_DIR, CLOSED_DIR):
+        if not folder.is_dir():
+            continue
+        ids = {fields.get("id", "").upper() for _, fields, _ in read_md_files(folder)}
+        for f in sorted(folder.iterdir()):
+            if not f.is_file() or f.name.startswith("."):
+                continue
+            if f.suffix == ".md":
+                try:
+                    fields, _ = parse_frontmatter(f.read_text(encoding="utf-8"))
+                except (OSError, UnicodeDecodeError):
+                    fields = {}
+                if fields.get("id"):
+                    continue                    # 本体
+            m = re.match(r"^([A-Za-z][A-Za-z0-9]*-\d+)_", f.name)
+            if m and m.group(1).upper() not in ids:
+                out.append(f"⚠ 孤児の添付: {folder.name}/{f.name}（同じフォルダに {m.group(1)} の本体が無い。"
+                           "本体だけ動いた・ID の打ち間違いなら、本体と同じフォルダへ移すか名前を直す）")
+    return out
+
+
 # ---------------------------------------------------------------------------
-# プロジェクト概要 HTML のスナップショット
+# プロジェクト概要 HTML の自動欄
 # ---------------------------------------------------------------------------
 
+def open_items(tasks: list[dict]) -> list[dict]:
+    return [t for t in tasks if t["state"] == "open"]
+
+
+def due_cell(t: dict, now: datetime.date) -> str:
+    d = parse_date(t.get("due", ""))
+    if d is None:
+        return html.escape(t.get("due", "") or "—")
+    if d < now:
+        return f"{d.isoformat()} <span class=\"chip hold\">期限切れ</span>"
+    return d.isoformat()
+
+
 def build_snapshot_html(tasks: list[dict], screens: list[dict]) -> str:
-    """概要 HTML に埋め込む断片（<p> と <table> のみ・外部依存なし）を生成する。"""
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    open_tasks = [t for t in tasks if t["state"] == "open"]
+    """task-snapshot の断片（<p> と <table> のみ・外部依存なし）。課題は「決めてほしいこと」に出るので表から外す。"""
+    now_s = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = today()
+    opens = open_items(tasks)
     closed_count = sum(1 for t in tasks if t["state"] == "closed")
-    issue_count = sum(1 for t in open_tasks if t["kind"] == "課題")
-    pending_count = sum(1 for t in open_tasks if t["status"] == "確認待ち")
-    active_count = sum(1 for t in open_tasks if t["status"] == "進行中")
+    issue_count = sum(1 for t in opens if t["kind"] == "課題")
+    pending_count = sum(1 for t in opens if t["status"] == "確認待ち")
+    active_count = sum(1 for t in opens if t["status"] == "進行中")
+    overdue_count = sum(1 for t in opens if (parse_date(t.get("due", "")) or now) < now)
     scr_done = sum(1 for s in screens if s["status"] == "完了")
 
     top = sorted(
-        open_tasks,
+        [t for t in opens if t["kind"] != "課題"],
         key=lambda t: (PRIORITY_RANK.get(t["priority"], 9), id_sort_key(t)),
     )[:10]
 
     e = html.escape
     lines = [
-        f"<p>生成: {now} ／ OPEN {len(open_tasks)} 件（課題 {issue_count}・確認待ち {pending_count}・進行中 {active_count}）"
-        f"／ CLOSED {closed_count} 件</p>",
+        f"<p>生成: {now_s} ／ OPEN {len(opens)} 件（課題 {issue_count}・確認待ち {pending_count}・進行中 {active_count}"
+        f"・期限切れ {overdue_count}）／ CLOSED {closed_count} 件</p>",
         f"<p>画面: 完了 {scr_done} / {len(screens)}</p>",
     ]
     if top:
         lines.append("<table>")
-        lines.append("<tr><th>ID</th><th>タイトル</th><th>優先度</th><th>状態</th></tr>")
+        lines.append("<tr><th>ID</th><th>タイトル</th><th>優先度</th><th>状態</th><th>期限</th></tr>")
         for t in top:
             lines.append(
                 f"<tr><td>{e(t['id'])}</td><td>{e(t['title'])}</td>"
-                f"<td>{e(t['priority'])}</td><td>{e(t['status'])}</td></tr>"
+                f"<td>{e(t['priority'])}</td><td>{e(t['status'])}</td><td>{due_cell(t, now)}</td></tr>"
             )
         lines.append("</table>")
     else:
-        lines.append("<p>OPEN のタスクはありません。</p>")
+        lines.append("<p>OPEN のタスクはありません（課題は「決めてほしいこと」に出る）。</p>")
     return "\n".join(lines) + "\n"
 
 
-def update_snapshot(tasks: list[dict], screens: list[dict], check: bool) -> None:
+def build_open_issues_html(tasks: list[dict]) -> str:
+    """決めてほしいこと: open の課題。期限の近い順（期限なしは後ろ）→ 優先度 → ID。"""
+    now = today()
+    issues = [t for t in open_items(tasks) if t["kind"] == "課題"]
+    far = datetime.date.max
+    issues.sort(key=lambda t: (parse_date(t.get("due", "")) or far,
+                               PRIORITY_RANK.get(t["priority"], 9), id_sort_key(t)))
+    if not issues:
+        return "<p class=\"muted\">いま決めてほしいことはありません。</p>\n"
+    e = html.escape
+    lines = ["<table>",
+             "<tr><th class=\"id\">ID</th><th>問い</th><th>決める</th><th>期限</th><th>状態</th></tr>"]
+    for t in issues[:OPEN_ISSUES_MAX]:
+        lines.append(
+            f"<tr><td class=\"id\">{e(t['id'])}</td><td>{e(t['title'])}</td>"
+            f"<td>{e(t.get('decider', '') or '—')}</td><td>{due_cell(t, now)}</td><td>{e(t['status'])}</td></tr>"
+        )
+    lines.append("</table>")
+    rest = len(issues) - OPEN_ISSUES_MAX
+    if rest > 0:
+        lines.append(f"<p class=\"note\">ほか {rest} 件（docs/案件/01_タスク管理/index.html）</p>")
+    return "\n".join(lines) + "\n"
+
+
+def _strip_tags(s: str) -> str:
+    return html.unescape(re.sub(r"<[^>]+>", "", s)).strip()
+
+
+def roadmap_milestones(text: str) -> list[dict]:
+    """roadmap マーカー内の <tr> のうち、1 つ目の <td> が YYYY-MM-DD か YYYY-MM で始まり、状態が「完了」でない行。"""
+    m = re.search(r"<!--\s*BEGIN:roadmap\s*-->(.*?)<!--\s*END:roadmap\s*-->", text, re.S)
+    if not m:
+        return []
+    out = []
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", m.group(1), re.S):
+        cells = [_strip_tags(c) for c in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+        if not cells:
+            continue
+        dm = re.match(r"^(\d{4})-(\d{2})(?:-(\d{2}))?", cells[0])
+        if not dm:
+            continue
+        state = cells[2] if len(cells) >= 3 else " ".join(cells[1:])
+        if "完了" in state:
+            continue
+        try:
+            y, mo = int(dm.group(1)), int(dm.group(2))
+            if dm.group(3):
+                start = end = datetime.date(y, mo, int(dm.group(3)))
+            else:
+                start = datetime.date(y, mo, 1)
+                end = (datetime.date(y + (mo == 12), mo % 12 + 1, 1) - datetime.timedelta(days=1))
+        except ValueError:
+            continue
+        out.append({"label": cells[0], "start": start, "end": end,
+                    "text": cells[1] if len(cells) >= 2 else "", "source": "ロードマップ"})
+    return out
+
+
+def build_milestones_html(tasks: list[dict], overview_text: str) -> str:
+    """次の節目: 期限切れを先頭に（古い順）、続いて今日以降の近い順。合わせて 5 件。"""
+    now = today()
+    rows = roadmap_milestones(overview_text)
+    for t in open_items(tasks):
+        d = parse_date(t.get("due", ""))
+        if d:
+            rows.append({"label": d.isoformat(), "start": d, "end": d, "text": t["title"], "source": t["id"]})
+    if not rows:
+        return ("<p class=\"muted\">節目はまだありません（ロードマップの時期に日付を書くか、"
+                "タスクに due を付けると出ます）。</p>\n")
+    overdue = sorted([r for r in rows if r["end"] < now], key=lambda r: (r["start"], r["source"]))
+    upcoming = sorted([r for r in rows if r["end"] >= now], key=lambda r: (r["start"], r["source"]))
+    shown = (overdue + upcoming)[:MILESTONES_MAX]
+    e = html.escape
+    lines = ["<table>", "<tr><th style=\"width:9em\">日付</th><th>内容</th><th class=\"id\">出典</th></tr>"]
+    for r in shown:
+        mark = " <span class=\"chip hold\">期限切れ</span>" if r["end"] < now else ""
+        lines.append(f"<tr><td>{e(r['label'])}{mark}</td><td>{e(r['text'])}</td><td class=\"id\">{e(r['source'])}</td></tr>")
+    lines.append("</table>")
+    rest = len(rows) - len(shown)
+    if rest > 0:
+        lines.append(f"<p class=\"note\">ほか {rest} 件</p>")
+    return "\n".join(lines) + "\n"
+
+
+def load_drops():
+    """.claude/hooks/drops.py を import する。できなければ None。"""
+    try:
+        if str(HOOKS_DIR) not in sys.path:
+            sys.path.insert(0, str(HOOKS_DIR))
+        import drops  # type: ignore
+        return drops
+    except Exception:
+        return None
+
+
+def build_recent_decisions_html(drops) -> str:
+    """直近の決定: 打合せ記録の決定行 + 閉じた課題の `## 決定`。新しい順に 5 件。"""
+    found = drops.recent_decisions(str(ROOT), DECISIONS_MAX)
+    if not found:
+        return "<p class=\"muted\">まだ決定はありません。</p>\n"
+    e = html.escape
+    lines = ["<ul class=\"decisions\">"]
+    for d in found:
+        text = d["text"]
+        if drops.looks_secret(text):
+            text = "（秘密らしき文字列を含む行。出典を参照）"
+        lines.append(f"<li><span class=\"d\">{e(d['date'])}</span><span>{e(text)}</span>"
+                     f"<span class=\"ref\">{e(d['source'])}</span></li>")
+    lines.append("</ul>")
+    return "\n".join(lines) + "\n"
+
+
+def replace_marker(text: str, name: str, fragment: str) -> str | None:
+    """BEGIN:name 〜 END:name の内側を fragment に置き換える。マーカーの対が無ければ None。"""
+    begin, end = f"<!-- BEGIN:{name} -->", f"<!-- END:{name} -->"
+    b = text.find(begin)
+    e = text.find(end, b + len(begin)) if b >= 0 else -1
+    if b < 0 or e < 0:
+        return None
+    # END マーカーの行頭のインデントは保つ
+    line_start = text.rfind("\n", 0, e) + 1
+    indent = text[line_start:e] if text[line_start:e].strip() == "" else ""
+    head = text[:b + len(begin)]
+    tail = text[line_start:] if indent else text[e:]
+    return head + "\n" + fragment + tail
+
+
+def update_overview(tasks: list[dict], screens: list[dict], check: bool) -> None:
     """
-    docs/プロジェクト概要.html のマーカー内側を置換して書き戻す。
+    docs/プロジェクト概要.html の自動欄（マーカーの内側）を置換して書き戻す。
     ファイルやマーカーが無ければ注記のみで続行する（検証の警告数には数えない）。
     check=True のときは書き込まない。
     """
     if not SNAPSHOT_HTML.exists():
-        print(f"注記: {SNAPSHOT_HTML} が無いためスナップショットはスキップ", file=sys.stderr)
+        print(f"注記: {SNAPSHOT_HTML} が無いため概要 HTML の自動欄はスキップ", file=sys.stderr)
         return
     text = SNAPSHOT_HTML.read_text(encoding="utf-8")
-    b = text.find(SNAPSHOT_BEGIN)
-    e = text.find(SNAPSHOT_END, b + len(SNAPSHOT_BEGIN)) if b >= 0 else -1
-    if b < 0 or e < 0:
-        print(f"注記: {SNAPSHOT_HTML.name} に {SNAPSHOT_BEGIN} / {SNAPSHOT_END} の対が無いためスキップ", file=sys.stderr)
-        return
+    drops = load_drops()
+    sections = [
+        ("task-snapshot", lambda: build_snapshot_html(tasks, screens)),
+        ("open-issues", lambda: build_open_issues_html(tasks)),
+        ("milestones", lambda: build_milestones_html(tasks, text)),
+        ("recent-decisions", (lambda: build_recent_decisions_html(drops)) if drops else None),
+    ]
+    done, skipped = [], []
+    new_text = text
+    for name, make in sections:
+        if f"<!-- BEGIN:{name} -->" not in new_text or f"<!-- END:{name} -->" not in new_text:
+            skipped.append(f"{name}（マーカーなし）")
+            continue
+        if make is None:
+            skipped.append(f"{name}（.claude/hooks/drops.py を読めない）")
+            continue
+        replaced = replace_marker(new_text, name, make())
+        if replaced is None:
+            skipped.append(f"{name}（マーカーの順が不正）")
+            continue
+        new_text = replaced
+        done.append(name)
+    for s in skipped:
+        print(f"注記: {SNAPSHOT_HTML.name} の自動欄 {s} はスキップ", file=sys.stderr)
     if check:
-        print(f"検証: {SNAPSHOT_HTML.name} のスナップショット対象あり（--check のため未更新）")
+        print(f"検証: {SNAPSHOT_HTML.name} の自動欄 {len(done)} 件（{'・'.join(done) or 'なし'}。--check のため未更新）")
         return
-    fragment = "\n" + build_snapshot_html(tasks, screens)
-    new_text = text[:b + len(SNAPSHOT_BEGIN)] + fragment + text[e:]
-    SNAPSHOT_HTML.write_text(new_text, encoding="utf-8", newline="\n")
-    print(f"更新: {SNAPSHOT_HTML.name} のスナップショット")
+    if new_text != text:
+        SNAPSHOT_HTML.write_bytes(new_text.encode("utf-8"))
+    print(f"更新: {SNAPSHOT_HTML.name} の自動欄（{'・'.join(done) or 'なし'}）")
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +564,11 @@ def update_snapshot(tasks: list[dict], screens: list[dict], check: bool) -> None
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
     check = "--check" in sys.argv[1:]
 
     tasks: list[dict] = []
@@ -355,6 +584,10 @@ def main() -> int:
     warnings = validate_tasks(tasks) + validate_screens(screens) + link_screens(tasks, screens)
     for w in warnings:
         print(w, file=sys.stderr)
+    # 孤児の添付は警告行だけ（exit は変えない）
+    orphans = orphan_attachments()
+    for w in orphans:
+        print(w, file=sys.stderr)
 
     open_count = sum(1 for t in tasks if t["state"] == "open")
     closed_count = sum(1 for t in tasks if t["state"] == "closed")
@@ -366,8 +599,9 @@ def main() -> int:
     )
 
     if check:
-        print(f"検証: {summary}、警告 {len(warnings)} 件")
-        update_snapshot(tasks, screens, check=True)
+        extra = f"・孤児の添付 {len(orphans)} 件（exit に数えない）" if orphans else ""
+        print(f"検証: {summary}、警告 {len(warnings)} 件{extra}")
+        update_overview(tasks, screens, check=True)
         return 1 if warnings else 0
 
     # data.js 書き出し
@@ -379,10 +613,10 @@ def main() -> int:
         + json.dumps(screens, ensure_ascii=False, indent=2)
         + ";\n"
     )
-    OUT_PATH.write_text(content, encoding="utf-8", newline="\n")
+    OUT_PATH.write_bytes(content.encode("utf-8"))
     print(f"生成: {summary}")
 
-    update_snapshot(tasks, screens, check=False)
+    update_overview(tasks, screens, check=False)
     return 0
 
 

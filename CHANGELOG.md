@@ -15,6 +15,74 @@
 - 手作業が要るものはここに列挙する
 ```
 
+## [1.2.0] - 2026-09-23
+
+v1.1.0 を架空の案件で実際に使ったレビュー(初動が重い・決定が落ちる・未決の置き場が 4 つ・設計書追随が空振り・
+AI の動作がマシンのグローバル設定に左右される)への対応。**増やす決まりは 1 つだけ**: 作業中に出たもの
+(決定・未決・あとでやること・ハーネス候補)は「反映済・タスク・未決」のどれかに落とす。止めるのは
+「落ちていない」「形が壊れている」「秘密を書いた」ときだけで、空欄・未記入・未決の多さでは止めない。
+
+### 変更
+- 追加: フェーズ(立ち上げ / 開発 / 運用)
+  - 正本は概要 HTML の phase ブロックの `data-phase`。厳しさの表は `.claude/hooks/phase.py` の 1 か所
+    (`python3 .claude/hooks/phase.py --table` で表示、`--set 開発` で切り替え)。切り替えはユーザーが決め、
+    `update-overview` スキルで行う
+  - 立ち上げ期は拾うだけ。設計書は未記入でよく、設計書追随 hook はセッション 1 回の情報にとどまる
+- 追加: 拾って流す
+  - 未決の正本を課題 md(`kind: 課題`)に一本化。設計書は「(未決 QA-01)」で参照し、U-xx は廃止。
+    課題は `## 決定` の 1 行目と落ち先が無いと `close.py` で閉じられない
+  - 打合せ記録の `## 決定` `## 未決` `## 宿題` の各行に落ち先(`→ 反映済: 01 §3` / `→ APP-03` /
+    `→ 未決 QA-01` / `→ 候補: 05 §3` / `→ ハーネス候補 HN-01`)
+  - hook: UserPromptSubmit `pickup_cue`(依頼文の手がかりを記録)、Stop `pickup_check`(ターンの終わりに
+    機械判定し、落ち先の無いものがあるときだけ 1 回だけ続行させる)。`CLAUDE_PICKUP=off` で止められる
+  - skill `pickup`、検査 `scripts/check_drops.py`、共有モジュール `drops.py`・`pickup_state.py`
+  - `sync-design-docs` の判定を「矛盾しないか」から「この変更で何が決まったかを 1 行拾う」へ
+- 追加: 見える化と期限
+  - タスク・課題に任意の `due`(課題は `decider` も)。概要 HTML の「現在地」に build.py が
+    「決めてほしいこと」「次の節目」「直近の決定」を自動生成(旧 `decisions` マーカーは `recent-decisions` へ)
+- 追加: ハーネスは候補から承認で定義する
+  - skill `harness`(観点カタログ 11 観点。記入欄ではなく Claude が漏れに気づく目)と `.claude/ハーネス台帳.md`。
+    Claude は候補を台帳に書くまで、定義はユーザーの承認後。`.claude/agents/` は `model` 必須
+- 追加: 案件で揃う範囲
+  - `SETUP.md` §8(案件で揃うもの / マシンに左右されるもの、初回は対話起動でワークスペースを信頼、
+    グローバル plugin は案件の `enabledPlugins` で止められる)。SessionStart に「マシン側」の 1 行
+  - `settings.json`: 読むだけのコマンドとテスト実行を allow、履歴破壊系を deny(05 §9 を決定に)、
+    `env.CLAUDE_CODE_SUBAGENT_MODEL=sonnet`
+- 変更: 初日を軽く
+  - `init.py` の案内を「最初はこの 4 つだけ」と「今は書かなくてよいもの」に。`--desc` `--owner` 未指定は
+    「(未記入…)」「(未定)」を入れて案内
+  - タスク README を約 70 行の要約と `詳細仕様.md` に分割。雛形のままの設計書は「未記入 N 本」と情報表示
+  - SessionStart の注入は 8 行以内(フェーズ・設計書の要確認と未記入・拾いもの・ハーネス候補・マシン側)
+- 修正: skill の `allowed-tools` を全て削除(template の 4 本とスケルトンの `SKILL.md`)。
+  未信頼のワークスペースで起動が拒否される原因だった
+- 修正: 秘密検出をスキーム不問の URL 資格情報・記号入りの値・既知のトークン形式に広げ、対象を docs/ 全体・
+  CLAUDE.md・.claude/ へ。誤検知は行に `secret-scan: ok <理由>` で除外
+- 修正: `new.py` を argparse 化(`-h` は何も作らない、未登録 area は止める、接頭辞は読み替え、
+  `--priority --owner --due --tag --add-area --decider --decided --to`、1 行目に確定 ID)。既定の領域に「仕様: SPEC」
+- 修正: `init.py --merge` の比較から build の生成物を外し、differs を「仕組み」と「内容」に分けて出す
+
+### 既存プロジェクトへの適用(v1.1.0 → v1.2.0)
+1. `python3 <skeleton>/scripts/init.py <案件> --name "<表示名>" --merge --dry-run` で差分を見る
+2. `--merge` で新規ファイルを入れる(phase.py・machine_context.py・drops.py・pickup_*・check_drops.py・
+   skill pickup / harness・ハーネス台帳.md・詳細仕様.md・scripts/tests/ ほか)
+3. 「仕組み」の differs を取り込む(独自の変更が無ければ置き換え): `check_skeleton.py`・`docs_freshness.py`・
+   `session_context.sh`・`design_docs_reminder.py`・`new.py`・`close.py`・`build.py`・`index.html`・`run-all.sh`・
+   `hook-cases-reminder.txt`
+4. **フェーズを設定する**: `python3 .claude/hooks/phase.py --set <立ち上げ|開発|運用>`
+   (設定しないと立ち上げ扱いになり、開発中の案件では設計書追随が弱まる)
+5. 「内容」の differs を手で取り込む: `CLAUDE.md`(§2・制約 4・7・8。既存の制約 8 以降は番号をずらす)、
+   `settings.json`(UserPromptSubmit と Stop の hook、allow・deny・env。案件で足した allow は残す)、
+   skill 6 本(`allowed-tools` 行の削除を含む)、`docs/設計書/README.md`(影響マップの打合せ行・書き方)、
+   05 §9、`rules/docs-management.md`、`02_打合せ/README.md`、`確認依頼一覧.md`、`案件情報.md` §3・§4、
+   タスク README(要約に差し替え。案件で書き換えたクローズ基準は残す)、`areas.json`(仕様: SPEC)
+6. データを移す(`python3 scripts/check_drops.py` を見ながら): 設計書の U-xx と案件情報 §4 の未決を課題に起票、
+   確認依頼一覧の `[ ]` 行に ID、概要 HTML の手書きの「直近の決定」を打合せ記録か課題(`new.py --decided`)へ
+   移してから `decisions` マーカーを `recent-decisions` 等に差し替え。古い打合せ記録の落ち先は
+   `→ 反映済: 記録のみ（v1.2.0 移行前）` でよい
+7. 案件で足していたハーネス(skill・agents・hook)は台帳に「定義済」で 1 行ずつ。agents に `model` が無ければ書く
+8. `python3 scripts/check_skeleton.py` → fail=0。秘密検出の範囲が広がるので、NG は値を `環境情報.md` へ移す
+9. 初回は対話起動でワークスペースを信頼する(SETUP.md §8)。非対話の一括処理では `CLAUDE_PICKUP=off`
+
 ## [1.1.0] - 2026-09-23
 
 ### 変更

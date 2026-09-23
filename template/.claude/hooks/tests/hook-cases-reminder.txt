@@ -1,6 +1,8 @@
 # design_docs_reminder.py の判定ケース。影響マップは docs/設計書/README.md の実物を使う。
-# 書式: <期待 none|remind><TAB><file_path><TAB><stdout に含まれるべき文字列><TAB><session_id><TAB><CLAUDE_PROJECT_DIR の上書き>
-# 3〜5 列目は省略可。途中の列を飛ばすときは `-` を置く（空欄のタブ連続は bash の read が 1 つに畳むので列がずれる）。
+# 書式: <期待 none|remind><TAB><file_path><TAB><stdout に含まれるべき文字列><TAB><session_id><TAB><CLAUDE_PROJECT_DIR の上書き><TAB><フェーズ>
+# 3 列目が `!` で始まるときは「含まれてはいけない文字列」。
+# 6 列目のフェーズは環境変数 CLAUDE_SKELETON_PHASE で渡す。省略・`-` は 開発（v1.1.0 からのケースは開発期の挙動）。
+# 3〜6 列目は省略可。途中の列を飛ばすときは `-` を置く（空欄のタブ連続は bash の read が 1 つに畳むので列がずれる）。
 # session_id を省略した行は毎回リマインドが出る。
 # 5 列目の {WIN} は run-all.sh が template ルートの Windows 形式（C:\…）に置き換える。
 # 行頭 # と空行は無視。
@@ -13,7 +15,6 @@ remind	.github/workflows/deploy.yml	07-開発運用設計.md
 remind	Dockerfile	07-開発運用設計.md
 remind	docker-compose.dev.yml	07-開発運用設計.md
 remind	tests/test_login.py	06-品質設計.md
-remind	docs/案件/02_打合せ/20260923_定例.md	03-ステークホルダー.md
 remind	docs/設計書/decisions/ADR-001-naming.md	decisions/README.md
 remind	docs/設計書/01-overview.md	プロジェクト概要.html
 remind	package.json	02-architecture.md
@@ -34,3 +35,23 @@ remind	tests/test_a.py	06-品質設計.md	sess-dup-1
 
 # --- Windows 形式（file_path・ルートとも C:\…）---
 remind	{WIN}\src\auth\login.py	05-セキュリティ設計.md	-	{WIN}
+
+# --- 打合せ記録は影響マップを引かず [落ち先]（フェーズに関係なく、ファイルごとにセッション 1 回）---
+remind	docs/案件/02_打合せ/20260923_キックオフ.md	[落ち先]	sess-mtg-1
+none	docs/案件/02_打合せ/20260923_キックオフ.md	-	sess-mtg-1
+remind	docs/案件/02_打合せ/20260930_定例.md	[落ち先]	sess-mtg-1
+remind	docs/案件/02_打合せ/20260923_キックオフ.md	!設計書追随	sess-mtg-2
+remind	docs/案件/02_打合せ/20260923_キックオフ.md	[落ち先]	sess-mtg-3	-	立ち上げ
+# 打合せフォルダの README は記録ではないので、影響マップの通常の追随（[落ち先] ではない）
+remind	docs/案件/02_打合せ/README.md	!落ち先	sess-mtg-4
+
+# --- フェーズ別（design_docs_reminder のレベル: 立ち上げ=情報 / 開発・運用=警告）---
+remind	src/auth/login.py	[設計書候補]	sess-ph-1	-	立ち上げ
+none	tests/test_login.py	-	sess-ph-1	-	立ち上げ
+remind	src/auth/login.py	直さなくてよい	-	-	立ち上げ
+remind	src/auth/login.py	決まったことを 1 行	sess-ph-2	-	開発
+remind	src/auth/login.py	[設計書追随]	sess-ph-2	-	運用
+none	src/auth/login.py	-	sess-ph-2	-	運用
+remind	src/auth/login.py	[設計書候補]	sess-ph-3	-	立ち上げ
+remind	src/auth/login.py	[設計書追随]	sess-ph-3	-	開発
+none	src/auth/login.py	-	sess-ph-3	-	開発

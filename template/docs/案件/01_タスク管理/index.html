@@ -238,6 +238,19 @@ select.filter-select:focus { border-color: #4f46e5; }
 .issue-zone .task-row.selected { background: #fbcfe8; }
 .issue-zone .kind-pill { display: none; } /* ゾーン内では課題ピルは冗長 */
 
+/* ===== Due chip（期限。期限切れは赤、7 日以内は黄） / 課題を決める人 ===== */
+.due-chip {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  background: #f3f4f6;
+  color: #4b5563;
+}
+.due-chip.overdue { background: #fee2e2; color: #b91c1c; font-weight: 600; }
+.due-chip.soon    { background: #fef9c3; color: #854d0e; font-weight: 600; }
+.decider-label { font-size: 11px; color: #9d174d; white-space: nowrap; }
+
 /* ===== Priority Dot ===== */
 .prio-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .p-最高 { background: #dc2626; }
@@ -505,6 +518,11 @@ select.filter-select:focus { border-color: #4f46e5; }
     <button class="toggle-btn active" data-val="area">領域別</button>
     <button class="toggle-btn" data-val="epic">エピック別</button>
   </div>
+
+  <select class="filter-select" id="sortSelect" data-view="task" title="並び順（課題のバンドは常に期限の近い順）">
+    <option value="id">ID 順</option>
+    <option value="due">期限の近い順</option>
+  </select>
 </div>
 
 <div class="main">
@@ -552,6 +570,7 @@ select.filter-select:focus { border-color: #4f46e5; }
   let areaVal          = '';
   let statusVal        = '';
   let priorityVal      = '';
+  let sortBy           = 'id';     // 'id' | 'due'
   let selectedId       = null;     // 選択中タスク ID
   let selectedScreenId = null;     // 選択中画面 ID
 
@@ -693,6 +712,53 @@ select.filter-select:focus { border-color: #4f46e5; }
   ============================================================ */
 
   const PRIO_DOT = { '最高': 'p-最高', '高': 'p-高', '中': 'p-中', '低': 'p-低' };
+  const PRIO_RANK = { '最高': 0, '高': 1, '中': 2, '低': 3 };
+
+  /* 期限（due: YYYY-MM-DD・任意） */
+  const TODAY = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+
+  function parseDue(s) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s || '')) return null;
+    const d = new Date(s + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function dueClass(t) {
+    const d = parseDue(t.due);
+    if (!d || t.state === 'closed') return '';
+    const days = Math.round((d - TODAY) / 86400000);
+    if (days < 0) return 'overdue';
+    if (days <= 7) return 'soon';
+    return '';
+  }
+
+  function dueChip(t) {
+    if (!t.due) return '';
+    const c = dueClass(t);
+    const label = c === 'overdue' ? '期限切れ ' : '期限 ';
+    return `<span class="due-chip ${c}" title="期限（due）">${label}${esc(t.due)}</span>`;
+  }
+
+  /** 期限の近い順（期限なしは後ろ）。同じなら 0 */
+  function byDue(a, b) {
+    const da = parseDue(a.due), db = parseDue(b.due);
+    if (da && db) return da - db;
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
+  }
+
+  function byPriority(a, b) {
+    return (PRIO_RANK[a.priority] ?? 9) - (PRIO_RANK[b.priority] ?? 9);
+  }
+
+  function byId(a, b) {
+    return (a.id || '').localeCompare(b.id || '', 'ja', { numeric: true });
+  }
+
+  function sortTasks(list) {
+    return sortBy === 'due' ? list.slice().sort((a, b) => byDue(a, b) || byId(a, b)) : list;
+  }
 
   function screenChip(scrId) {
     const s = SCREEN_BY_ID[scrId];
@@ -740,6 +806,8 @@ select.filter-select:focus { border-color: #4f46e5; }
         <span class="status-pill s-${esc(t.status)}">${esc(t.status)}</span>
         <span class="prio-dot ${prioClass}" title="${esc(t.priority || '中')}"></span>
         <span class="prio-label">${esc(t.priority || '')}</span>
+        ${dueChip(t)}
+        ${(t.kind === '課題' && t.decider) ? `<span class="decider-label" title="決める人（decider）">決める: ${esc(t.decider)}</span>` : ''}
         ${tags}${screens}
       </div>
       ${progressHTML}
@@ -789,8 +857,10 @@ select.filter-select:focus { border-color: #4f46e5; }
     }
 
     // 課題はタスクと同列に並べず、リスト上部の専用バンドに分離表示
-    const issues   = filtered.filter(t => t.kind === '課題');
-    const taskRows = filtered.filter(t => t.kind !== '課題');
+    // 課題バンドは常に「期限の近い順（期限なしは後ろ）→ 優先度 → ID」
+    const issues   = filtered.filter(t => t.kind === '課題')
+      .sort((a, b) => byDue(a, b) || byPriority(a, b) || byId(a, b));
+    const taskRows = sortTasks(filtered.filter(t => t.kind !== '課題'));
 
     let html = '';
 
@@ -815,7 +885,7 @@ select.filter-select:focus { border-color: #4f46e5; }
         if (epic !== 'その他') {
           const parents  = group.filter(t => isEpicParent(t));
           const children = group.filter(t => !isEpicParent(t)).sort(
-            (a, b) => a.id.localeCompare(b.id)
+            (a, b) => (sortBy === 'due' ? byDue(a, b) : 0) || a.id.localeCompare(b.id)
           );
           parents.forEach(t  => { html += buildTaskRow(t, false, true);  });
           children.forEach(t => { html += buildTaskRow(t, true,  false); });
@@ -952,6 +1022,8 @@ select.filter-select:focus { border-color: #4f46e5; }
       { key: '領域',    val: esc(t.area   || '—') },
       { key: 'エピック', val: esc(t.epic   || '—') },
       { key: '担当',    val: esc(t.owner  || '—') },
+      { key: '期限',    val: t.due ? dueChip(t) : '—' },
+      ...((t.kind === '課題') ? [{ key: '決める', val: esc(t.decider || '—') }] : []),
       { key: '出典',    val: esc(t.source || '—') },
       { key: '作成日',  val: esc(t.created || '—') },
       { key: '更新日',  val: esc(t.updated || '—') },
@@ -1310,6 +1382,11 @@ select.filter-select:focus { border-color: #4f46e5; }
 
     document.getElementById('priorityFilter').addEventListener('change', e => {
       priorityVal = e.target.value;
+      renderList();
+    });
+
+    document.getElementById('sortSelect').addEventListener('change', e => {
+      sortBy = e.target.value === 'due' ? 'due' : 'id';
       renderList();
     });
 

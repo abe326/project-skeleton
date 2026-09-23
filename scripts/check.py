@@ -46,12 +46,25 @@ TEMPLATE_REQUIRED = [
     ".claude/skills/task/SKILL.md",
     ".claude/skills/sync-design-docs/SKILL.md",
     ".claude/skills/audit-design-docs/SKILL.md",
+    ".claude/skills/pickup/SKILL.md",
+    ".claude/skills/harness/SKILL.md",
+    ".claude/ハーネス台帳.md",
     ".claude/hooks/session_context.sh",
     ".claude/hooks/work_area_guard.sh",
     ".claude/hooks/work_area_guard.py",
     ".claude/hooks/design_docs_reminder.sh",
     ".claude/hooks/design_docs_reminder.py",
     ".claude/hooks/impact_map.py",
+    ".claude/hooks/phase.py",
+    ".claude/hooks/machine_context.py",
+    ".claude/hooks/drops.py",
+    ".claude/hooks/pickup_state.py",
+    ".claude/hooks/pickup_cue.sh",
+    ".claude/hooks/pickup_cue.py",
+    ".claude/hooks/pickup_check.sh",
+    ".claude/hooks/pickup_check.py",
+    ".claude/hooks/tests/hook-cases-pickup.txt",
+    ".claude/hooks/tests/run_pickup_cases.py",
     ".claude/hooks/tests/hook-cases-guard.txt",
     ".claude/hooks/tests/hook-cases-reminder.txt",
     ".claude/hooks/tests/run-all.sh",
@@ -59,10 +72,13 @@ TEMPLATE_REQUIRED = [
     ".work/証跡/.gitkeep", ".work/機密/.gitkeep", ".work/一時/.gitkeep", ".work/_bk/.gitkeep",
     "scripts/check_skeleton.py",
     "scripts/docs_freshness.py",
+    "scripts/check_drops.py",
+    "scripts/tests/run_tests.py",
     "docs/README.md",
     "docs/プロジェクト概要.html",
     "docs/案件/README.md",
     "docs/案件/01_タスク管理/README.md",
+    "docs/案件/01_タスク管理/詳細仕様.md",
     "docs/案件/01_タスク管理/new.py",
     "docs/案件/01_タスク管理/close.py",
     "docs/案件/01_タスク管理/screen.py",
@@ -93,7 +109,8 @@ TEMPLATE_REQUIRED_DIRS = [
 ]
 
 OVERVIEW_MARKERS = [
-    "updated", "purpose", "principles", "phase", "decisions",
+    "updated", "purpose", "principles", "phase",
+    "open-issues", "milestones", "recent-decisions",
     "task-snapshot", "roadmap", "map", "history",
 ]
 
@@ -268,6 +285,8 @@ def main() -> int:
                 continue
             check(sfm.get("name") == d.name, f"skill {d.name}: name がディレクトリ名と一致({sfm.get('name')!r})")
             check(bool(sfm.get("description")), f"skill {d.name}: description が非空")
+            # v1.2.0: allowed-tools を持つ skill は未信頼のワークスペースで起動を拒否される(段階 0 で確認)
+            check("allowed-tools" not in sfm, f"skill {d.name}: allowed-tools を書かない")
     else:
         ng("template/.claude/skills が無い")
 
@@ -313,6 +332,38 @@ def main() -> int:
         first = claude_md.read_text(encoding="utf-8", errors="replace").lstrip().splitlines()[:1]
         check(bool(first) and first[0].startswith("<!-- project-skeleton v"),
               "template/CLAUDE.md の先頭が <!-- project-skeleton v… -->")
+
+    # 12b. CLAUDE.md は 80 行以内
+    if claude_md.is_file():
+        n = len(claude_md.read_text(encoding="utf-8", errors="replace").splitlines())
+        check(n <= 80, f"template/CLAUDE.md が 80 行以内(実際: {n})")
+
+    # 12c. template の agents 定義には model を必ず書く(継承させるなら model: inherit)
+    agents_dir = TEMPLATE / ".claude/agents"
+    if agents_dir.is_dir():
+        for a in sorted(agents_dir.glob("*.md")):
+            afm = parse_frontmatter(a) or {}
+            check(bool(afm.get("model")), f"agents {a.name}: model がある")
+
+    # 12d. 単体テスト(template/scripts/tests/run_tests.py)
+    run_tests = TEMPLATE / "scripts/tests/run_tests.py"
+    if run_tests.is_file():
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1")
+        r = subprocess.run([sys.executable, str(run_tests)], cwd=str(TEMPLATE), env=env,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if not check(r.returncode == 0, f"単体テスト run_tests.py が exit 0(実際: {r.returncode})"):
+            for line in (r.stdout + r.stderr).strip().splitlines()[-15:]:
+                print(f"   | {line}")
+
+    # 12e. スケルトン側の単体テスト(scripts/tests/test_*.py。init.py の案内・merge の比較除外など)
+    sk_tests = ROOT / "scripts/tests"
+    if sk_tests.is_dir():
+        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONDONTWRITEBYTECODE="1")
+        r = subprocess.run([sys.executable, "-m", "unittest", "discover", "-s", str(sk_tests), "-p", "test_*.py"],
+                           cwd=str(ROOT), env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if not check(r.returncode == 0, f"スケルトン側の単体テストが exit 0(実際: {r.returncode})"):
+            for line in (r.stdout + r.stderr).strip().splitlines()[-15:]:
+                print(f"   | {line}")
 
     # 13. template の設計書（メタ行は {{CREATED}} 許容・sha 不要・影響マップの解決は template 相対）
     sys.dont_write_bytecode = True

@@ -7,7 +7,8 @@
 <!--
   docs/プロジェクト概要.html — 目的・思想・現在地・将来対応・構成図の正本。
   編集は update-overview スキルで、各 BEGIN/END マーカーの内側だけを触る。
-  task-snapshot は docs/案件/01_タスク管理/build.py が自動生成する（手で編集しない）。
+  task-snapshot・open-issues・milestones・recent-decisions は docs/案件/01_タスク管理/build.py が自動生成する（手で編集しない）。
+  phase の data-phase（立ち上げ / 開発 / 運用）は機械が読む。切り替えは python3 .claude/hooks/phase.py --set <フェーズ>（update-overview スキル）。
   単一ファイル・外部 script/link 禁止・秘密（URL・ID・パスワード）は書かない（環境情報.md 参照と書く）。
   検査: python3 scripts/check_skeleton.py --overview
 -->
@@ -198,19 +199,27 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
   <div class="eyebrow"><span class="no">03</span>WHERE WE ARE</div>
   <h2>現在地</h2>
   <!-- BEGIN:phase -->
-  <div class="phase">
-    <div class="name">着手</div>
-    <div class="word">プロジェクトを {{CREATED}} に生成した。<strong>次の一手:</strong> 目的・原則・技術スタックを埋め、最初のタスクを起票する。</div>
+  <div class="phase" data-phase="立ち上げ">
+    <div class="name">立ち上げ</div>
+    <div class="word">プロジェクトを {{CREATED}} に生成した。<strong>次の一手:</strong> 打合せ・会話で出たことを記録し、決まっていないことを課題にする。目的とスコープを 1 行ずつ書く。</div>
   </div>
   <!-- END:phase -->
 
+  <h3>決めてほしいこと</h3>
+  <!-- BEGIN:open-issues -->
+  <p class="muted">まだ生成されていません（python3 docs/案件/01_タスク管理/build.py で生成）</p>
+  <!-- END:open-issues -->
+
+  <h3>次の節目</h3>
+  <!-- BEGIN:milestones -->
+  <p class="muted">まだ生成されていません（python3 docs/案件/01_タスク管理/build.py で生成）</p>
+  <!-- END:milestones -->
+
   <h3>直近の決定</h3>
-  <!-- BEGIN:decisions -->
-  <ul class="decisions">
-    <li><span class="d">{{CREATED}}</span><span>project-skeleton v{{SKELETON_VERSION}} の構成で開始する（タスク管理・作業領域・秘密の扱いを型どおりに運用する）</span><span class="ref">ADR-000</span></li>
-  </ul>
-  <p class="note">新しい順に 3〜5 件。ADR かタスク ID を必ず付ける。5 件を超えたら末尾を落とす（履歴は ADR とタスク md にある）。</p>
-  <!-- END:decisions -->
+  <!-- BEGIN:recent-decisions -->
+  <p class="muted">まだ生成されていません（python3 docs/案件/01_タスク管理/build.py で生成）</p>
+  <!-- END:recent-decisions -->
+  <p class="note">上の 3 つは <code>build.py</code> が書き換える（手で編集しない）。未決は課題 md、決定は打合せ記録の「決定」か閉じた課題の「決定」が正本。</p>
 
   <h3>タスクの状況</h3>
   <div class="snapshot">
@@ -218,7 +227,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
     <p class="muted">まだ生成されていません（python3 docs/案件/01_タスク管理/build.py で生成）</p>
     <!-- END:task-snapshot -->
   </div>
-  <p class="note">この枠は <code>build.py</code> が書き換える。一覧は <code>docs/案件/01_タスク管理/index.html</code>。</p>
+  <p class="note">この枠も <code>build.py</code> が書き換える（課題は「決めてほしいこと」に出るので除く）。一覧は <code>docs/案件/01_タスク管理/index.html</code>。</p>
 </section>
 
 <!-- ============================================================ -->
@@ -233,7 +242,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
       <tr><td>（例）第 2 段階</td><td>利用者に触ってもらい、確認依頼一覧で回収する</td><td><span class="chip todo">未着手</span></td><td class="id">—</td></tr>
     </tbody>
   </table>
-  <p class="note">状態は 未着手 / 進行中 / 完了 / 保留。完了した行は「6. 更新履歴」へ移して落とす。</p>
+  <p class="note">状態は 未着手 / 進行中 / 完了 / 保留。完了した行は「6. 更新履歴」へ移して落とす。時期に日付（YYYY-MM-DD か YYYY-MM）を書いた行は「次の節目」に出る。チームに見せてよい日付だけを書く。</p>
   <!-- END:roadmap -->
 </section>
 

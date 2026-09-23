@@ -20,6 +20,12 @@
 - 会話の出力（要約・報告・確認依頼の文面）。値が要る場面では「`環境情報.md` の §n に書いてある」と示す
 - コミットメッセージ・PR 本文
 
+## 検査が見る範囲と形
+
+- 範囲: `docs/` 配下の md・html すべて（打合せ記録・タスク md・確認依頼一覧を含む）、`CLAUDE.md`・`README.md`・`CHANGELOG.md`、`.claude/` 配下の md。`環境情報.md`・`案件情報.md`・`.env*`・`.work/` は見ない
+- 形: 既知のトークン形式（`AKIA…`・`ghp_…`・`sk-…`・`xox…-`・秘密鍵の BEGIN 行）、スキームを問わない URL の資格情報（`<scheme>://<user>:<pw>@`）、`password=`・`token:`・`パスワード：` などの key=value（記号入りの値も）。伏せ字・プレースホルダ・環境変数名・「環境情報.md 参照」は除く
+- `python3 scripts/check_skeleton.py --secrets` で単独に回せる（全フェーズで NG。出すのはファイルと行番号だけ）。誤検知の行は、同じ行に `<!-- secret-scan: ok 理由 -->` と書いて外す
+
 ## `.gitignore` の必須行
 
 生成時に `.gitignore` へ入っている。消さない。

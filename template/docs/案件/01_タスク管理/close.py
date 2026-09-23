@@ -10,6 +10,12 @@ Usage:
   python3 close.py QA-03
   python3 close.py --reopen QA-03
 
+課題（kind: 課題）を閉じるときだけ、次を確かめて満たさなければ閉じずに止まる（exit 1）:
+  1. `## 決定` の 1 行目（決定の内容）が空でない（HTML コメントは除く）
+  2. `## 決定` に落ち先の行（→ 反映済: 01 §3 / → APP-03 / → 未決 QA-02 / → 取り下げ: 理由）が 1 行以上ある
+  3. 落ち先の ID・文書が実在する（.claude/hooks/drops.py で確かめる。読めないときは 1・2 だけ）
+タスクは従来どおり（決定を見ない）。決定日は closed 欄。
+
 フロントマター書き換えユーティリティ（split_frontmatter / set_field / rewrite_md /
 find_md）は screen.py からも import して使う。
 """
@@ -22,6 +28,16 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 OPEN_DIR = BASE_DIR / "open"
 CLOSED_DIR = BASE_DIR / "closed"
+ROOT = BASE_DIR.parent.parent.parent          # docs/案件/01_タスク管理 → 案件ルート
+HOOKS_DIR = ROOT / ".claude" / "hooks"
+
+DECISION_EXAMPLE = """書き方の例（課題 md の `## 決定`）:
+  ## 決定
+  対象は本社の正社員のみ（2026-09-30 打合せ / SH-02）
+  → 反映済: 01 §3
+  → APP-03
+取り下げるときは 1 行目に理由、2 行目に `→ 取り下げ: 重複（QA-02 で扱う）`。
+落ち先の書き方: docs/案件/02_打合せ/README.md。ID は new.py の出力から写す"""
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +158,46 @@ def move_attachments(src_dir: Path, dst_dir: Path, id_: str, main_md: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# 課題の決着条件
+# ---------------------------------------------------------------------------
+
+def field_value(text: str, name: str) -> str:
+    _, fm_lines, _ = split_frontmatter(text)
+    for line in fm_lines:
+        m = re.match(rf"^{re.escape(name)}\s*:(.*)$", line.rstrip("\n"))
+        if m:
+            return m.group(1).strip().strip("\"'")
+    return ""
+
+
+def _fallback_issue_problems(text: str) -> list[str]:
+    """drops.py を import できないときの代替: 決定の 1 行目と `→` の行だけを自前で確かめる。"""
+    body = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    m = re.search(r"^##\s+決定\s*$(.*?)(?=^##\s|\Z)", body, flags=re.M | re.S)
+    lines = [re.sub(r"^[-*+]\s+", "", l.strip()) for l in (m.group(1).splitlines() if m else [])]
+    lines = [l for l in lines if l and not re.fullmatch(r"[（(].*[）)]", l)]
+    out = []
+    if not any(not l.startswith("→") for l in lines):
+        out.append("`## 決定` の 1 行目（決定の内容）が空")
+    if not any("→" in l and l.split("→")[-1].strip() for l in lines):
+        out.append("`## 決定` に落ち先の行（→ 反映済: 01 §3 / → APP-03 / → 未決 QA-02 / → 取り下げ: 理由）が無い")
+    return out
+
+
+def issue_problems(text: str) -> list[str]:
+    """課題を閉じられない理由の一覧（空なら閉じてよい）。"""
+    try:
+        if str(HOOKS_DIR) not in sys.path:
+            sys.path.insert(0, str(HOOKS_DIR))
+        import drops  # type: ignore
+    except Exception:
+        print("注記: .claude/hooks/drops.py を読めないため、落ち先の ID の実在は確かめていません", file=sys.stderr)
+        return _fallback_issue_problems(text)
+    root = str(ROOT)
+    return drops.issue_problems(text, drops.load_items(root), root, drops.ledger_ids(root))
+
+
+# ---------------------------------------------------------------------------
 # クローズ / 再オープン
 # ---------------------------------------------------------------------------
 
@@ -153,6 +209,14 @@ def do_close(id_: str, today: str) -> None:
         sys.exit(1)
 
     text = src.read_text(encoding="utf-8")
+    if field_value(text, "kind") == "課題":
+        problems = issue_problems(text)
+        if problems:
+            print(f"エラー: 課題 {id_} は決着の記録が揃っていないため閉じません（open/ のまま）:", file=sys.stderr)
+            for p in problems:
+                print(f"  - {p}", file=sys.stderr)
+            print(DECISION_EXAMPLE, file=sys.stderr)
+            sys.exit(1)
     new_text = rewrite_md(text, {
         "status":  "完了",
         "closed":  today,
@@ -196,6 +260,14 @@ def do_reopen(id_: str, today: str) -> None:
 def main() -> None:
     args = sys.argv[1:]
 
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+    if args and args[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        return
     if not args:
         print("Usage: python3 close.py <ID>", file=sys.stderr)
         print("       python3 close.py --reopen <ID>", file=sys.stderr)
@@ -211,7 +283,8 @@ def main() -> None:
     else:
         do_close(args[0], today)
 
-    # data.js を更新
+    # data.js を更新（先に自分の出力を出し切る）
+    sys.stdout.flush()
     result = subprocess.run(
         [sys.executable, str(BASE_DIR / "build.py")],
         capture_output=False,

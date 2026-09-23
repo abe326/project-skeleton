@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """このプロジェクトがスケルトンの構成を保っているかを検査する。
 
-使い方: python3 scripts/check_skeleton.py [--overview | --docs] [-v]
+使い方: python3 scripts/check_skeleton.py [--overview | --docs | --secrets | --harness | --drops] [-v]
 
-出力: `NG <内容>` 行 + 最後に `pass=N fail=M`。fail>0 なら exit 1。
---overview は docs/プロジェクト概要.html の項目だけ、--docs は docs/設計書/ の項目だけを検査する。
+出力: `NG <内容>` / `WARN <内容>` 行 + 最後に `pass=N fail=M warn=K`。fail>0 なら exit 1（WARN は fail に数えない）。
+-v で OK 行と INFO 行も出す。
+--overview は docs/プロジェクト概要.html、--docs は docs/設計書/、--secrets は秘密検出、--harness はハーネスの形、
+--drops は scripts/check_drops.py --strict（落ち先の検査。警告があれば NG）だけを行う。
+フェーズで厳しさが変わる検査は .claude/hooks/phase.py の表（STRICTNESS）を by_phase() で通す。
+止めるのは「形」と「秘密」だけ。空欄・未記入・未決の多さでは止めない。
 標準ライブラリのみ使用。プロジェクトルートはこのファイルの親の親。
 """
 
@@ -55,13 +59,20 @@ REQUIRED_FILES = [
     ".claude/hooks/tests/run-all.sh",
     ".claude/hooks/tests/hook-cases-guard.txt",
     ".claude/hooks/tests/hook-cases-reminder.txt",
+    ".claude/hooks/phase.py",
+    ".claude/hooks/machine_context.py",
+    ".claude/skills/harness/SKILL.md",
+    ".claude/ハーネス台帳.md",
     ".work/README.md",
     "scripts/check_skeleton.py",
     "scripts/docs_freshness.py",
+    "scripts/tests/run_tests.py",
+    "scripts/tests/secret-cases.txt",
     "docs/README.md",
     "docs/プロジェクト概要.html",
     "docs/案件/README.md",
     "docs/案件/01_タスク管理/README.md",
+    "docs/案件/01_タスク管理/詳細仕様.md",
     "docs/案件/01_タスク管理/new.py",
     "docs/案件/01_タスク管理/close.py",
     "docs/案件/01_タスク管理/screen.py",
@@ -77,7 +88,24 @@ REQUIRED_FILES = [
     *DESIGN_DOCS,
     "docs/設計書/decisions/README.md",
     "docs/設計書/runbook/README.md",
+    # 情報の流れ（落ち先・拾って流す）
+    ".claude/hooks/drops.py",
+    ".claude/hooks/pickup_state.py",
+    ".claude/hooks/pickup_cue.sh",
+    ".claude/hooks/pickup_cue.py",
+    ".claude/hooks/pickup_check.sh",
+    ".claude/hooks/pickup_check.py",
+    ".claude/skills/pickup/SKILL.md",
+    "scripts/check_drops.py",
 ]
+# TODO(v1.2.0 統合時に削除): 担当 Y の実装が揃うまで、存在するときだけ必須として数えるもの
+PENDING_FILES = {
+    ".claude/hooks/drops.py", ".claude/hooks/pickup_state.py",
+    ".claude/hooks/pickup_cue.sh", ".claude/hooks/pickup_cue.py",
+    ".claude/hooks/pickup_check.sh", ".claude/hooks/pickup_check.py",
+    ".claude/skills/pickup/SKILL.md", "scripts/check_drops.py",
+}
+PENDING_MARKERS = {"recent-decisions", "open-issues", "milestones"}
 REQUIRED_DIRS = [
     ".work/証跡", ".work/機密", ".work/一時", ".work/_bk",
     "docs/案件/01_タスク管理/open",
@@ -92,9 +120,25 @@ GITIGNORE_REQUIRED = [
 ]
 
 OVERVIEW_MARKERS = [
-    "updated", "purpose", "principles", "phase", "decisions",
+    "updated", "purpose", "principles", "phase", "open-issues", "milestones", "recent-decisions",
     "task-snapshot", "roadmap", "map", "history",
 ]
+
+# スケルトンが最初から持つハーネス（台帳に書かない）。スケルトン側 scripts/check.py が template の実物と一致するかを見る
+CORE_SKILLS = {
+    "work-placement", "scratch", "update-overview", "update-env-info", "task",
+    "sync-design-docs", "audit-design-docs", "pickup", "harness",
+}
+CORE_RULES = {"work-area.md", "docs-management.md", "secrets.md"}
+CORE_HOOKS = {
+    "session_context.sh", "work_area_guard.sh", "work_area_guard.py",
+    "design_docs_reminder.sh", "design_docs_reminder.py", "impact_map.py",
+    "phase.py", "machine_context.py", "drops.py", "pickup_state.py",
+    "pickup_cue.sh", "pickup_cue.py", "pickup_check.sh", "pickup_check.py",
+}
+HARNESS_LEDGER = ".claude/ハーネス台帳.md"
+HARNESS_STATES = ("候補", "定義済", "見送り", "マシン依存")
+AGENT_MODELS = ("inherit", "haiku", "sonnet", "opus", "fable")
 
 # CLAUDE.md 内のパス記述のうち、実在チェックから除外するパターン
 PATH_PATTERN_HINTS = ("YYYY", "MMDD", "NNN", "<", ">", "{", "}", "*", "…", "...", "xxx", "XXX", "用途", "例")
@@ -107,6 +151,8 @@ TEXT_EXTS = {
 VERBOSE = "-v" in sys.argv[1:]
 PASS = 0
 FAIL = 0
+WARN = 0
+_PHASE: str | None = None
 
 
 def ok(msg: str) -> None:
@@ -122,9 +168,56 @@ def ng(msg: str) -> None:
     print(f"NG {msg}")
 
 
+def warn(msg: str) -> None:
+    """fail に数えない指摘。末尾の warn=K に数える。"""
+    global WARN
+    WARN += 1
+    print(f"WARN {msg}")
+
+
+def info(msg: str) -> None:
+    """件数だけの情報。-v のときだけ出す。"""
+    if VERBOSE:
+        print(f"INFO {msg}")
+
+
 def check(cond: bool, msg: str) -> bool:
     (ok if cond else ng)(msg)
     return cond
+
+
+def current_phase() -> str:
+    global _PHASE
+    if _PHASE is None:
+        try:
+            import phase
+            _PHASE = phase.read_phase(ROOT)
+        except Exception:
+            _PHASE = "立ち上げ"
+    return _PHASE
+
+
+def phase_level(mechanism: str) -> str:
+    try:
+        import phase
+        return phase.level(mechanism, current_phase())
+    except Exception:
+        return "info"
+
+
+def by_phase(mechanism: str, cond: bool, msg: str) -> bool:
+    """フェーズ依存の検査。cond が偽のとき、phase.py の表のレベルで NG / WARN / INFO / 何もしない に振り分ける。"""
+    if cond:
+        ok(msg)
+        return True
+    lv = phase_level(mechanism)
+    if lv == "block":
+        ng(msg)
+    elif lv == "warn":
+        warn(msg)
+    elif lv == "info":
+        info(msg)
+    return False
 
 
 def parse_frontmatter(path: Path) -> dict[str, str] | None:
@@ -165,22 +258,117 @@ def check_overview() -> None:
     for name in OVERVIEW_MARKERS:
         b = len(re.findall(rf"<!--\s*BEGIN:{re.escape(name)}\s*-->", html))
         e = len(re.findall(rf"<!--\s*END:{re.escape(name)}\s*-->", html))
+        if name in PENDING_MARKERS and b == e == 0:
+            continue
         check(b == 1 and e == 1, f"概要 HTML マーカー {name}: BEGIN={b} END={e}")
     check(not re.search(r"<script[^>]*\ssrc=", html, re.I), "概要 HTML に外部 <script src= が無い")
     check(not re.search(r"<link\s[^>]*href=", html, re.I), "概要 HTML に外部 <link href= が無い")
     check(bool(re.search(r'charset="utf-8"', html, re.I)), '概要 HTML に charset="UTF-8" がある')
+    check_phase_attr()
 
+
+def check_phase_attr() -> None:
+    """phase ブロックの data-phase。不正な値は NG、属性が無い（v1.1.0 以前の案件）は WARN。"""
+    try:
+        import phase
+    except ImportError:
+        ng("フェーズ: .claude/hooks/phase.py を import できない")
+        return
+    _, problem = phase.phase_status(ROOT)
+    if problem is None:
+        ok("概要 HTML の phase ブロックに data-phase（立ち上げ / 開発 / 運用）がある")
+    elif problem.startswith("不正な値"):
+        ng(f"概要 HTML の data-phase が {' / '.join(phase.PHASES)} のどれでもない（{problem}）")
+    elif problem == "属性なし":
+        warn("概要 HTML の phase ブロックに data-phase が無い（立ち上げ扱い）。"
+             "python3 .claude/hooks/phase.py --set <立ち上げ|開発|運用> で設定する")
+    # 読めない・ブロックなしはマーカー検査が NG を出す
 
 # 鮮度メタ行（2 行目付近）。template 検査では日付の代わりに {{CREATED}} プレースホルダも通す
 META_RE = re.compile(r"^> 最終更新: \d{4}-\d{2}-\d{2}（.+）／ 対象: .+")
 META_RE_TEMPLATE = re.compile(r"^> 最終更新: (?:\d{4}-\d{2}-\d{2}|\{\{CREATED\}\})（.+）／ 対象: .+")
 PLACEHOLDER_RE = re.compile(r"\{\{[A-Z_]+\}\}")
-# 秘密らしき文字列。値そのものは NG 文言に出さない
-SECRET_RES = [
-    re.compile(r"(?i)\b(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*['\"]?[A-Za-z0-9_\-./+=]{12,}"),
-    re.compile(r"https?://[^/\s:]+:[^@\s]+@"),
-]
 DESIGN_EXCLUDE_DIRS = {"decisions", "runbook"}
+
+# ---------------------------------------------------------------------------
+# 秘密検出（secret_hits）。値そのものは NG 文言に出さない（ファイル: 行番号だけ）
+#   1) 既知のトークン形式 2) スキームを問わない URL 資格情報 3) key = value / key: value（記号入りの値も）
+#   当たった値が短い・非 ASCII・伏せ字・プレースホルダ・環境変数名・参照の書き方なら秘密とみなさない。
+#   同じ行に `secret-scan: ok <理由>` があれば除外（HTML コメントで書く）。ケース表は scripts/tests/secret-cases.txt
+# ---------------------------------------------------------------------------
+SECRET_TOKEN_RES = [re.compile(p) for p in (
+    r"\bAKIA[0-9A-Z]{16}\b", r"\bgh[pousr]_[A-Za-z0-9]{36,}", r"\bsk-[A-Za-z0-9_\-]{20,}",
+    r"\bxox[abprs]-[A-Za-z0-9\-]{10,}", r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
+)]
+SECRET_URL_RE = re.compile(r"(?i)\b[a-z][a-z0-9+.\-]*://([^\s/:@]*):([^\s/@]+)@")
+SECRET_KEY_RE = re.compile(
+    r"(?i)(?<![a-z0-9])(?:[a-z0-9]+[_-])*(password|passwd|pwd|pass|secret|token|api[_-]?key|access[_-]?key"
+    r"|client[_-]?secret|private[_-]?key|パスワード|トークン|秘密鍵)(?![a-z0-9])\s*[:=：]\s*['\"`]?([^\s'\"`<>|、。，,;]+)")
+_SECRET_PLACEHOLDER = re.compile(
+    r"(?i)^(\*+|x+|\.{3,}|…+|<.*>|\$\{?\w+\}?|%\w+%|\{\{\s*\w+\s*\}\}|changeme|dummy|example|sample|redacted"
+    r"|none|null|true|false|required|optional|pass|password|passwd|pw|secret|user|token)$")
+_SECRET_REF = re.compile(r"(?i)^(os\.|process\.env|getenv|env\(|secrets\.|vault:)|[\(\[]|\.md$")
+_SECRET_ENVNAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+SECRET_OPT_OUT = "secret-scan: ok"
+SECRET_EXCLUDE_NAMES = {"環境情報.md", "案件情報.md"}
+
+
+def _secret_value_ok(v: str, minlen: int) -> bool:
+    """秘密とみなさない値なら True。"""
+    if len(v) < minlen or any(ord(c) > 0x7e for c in v):
+        return True
+    return bool(_SECRET_PLACEHOLDER.match(v) or _SECRET_REF.search(v) or _SECRET_ENVNAME.match(v))
+
+
+def secret_hits(line: str) -> bool:
+    """行に秘密らしき文字列があれば True。`secret-scan: ok` のある行は False。"""
+    if SECRET_OPT_OUT in line:
+        return False
+    if any(r.search(line) for r in SECRET_TOKEN_RES):
+        return True
+    if any(not _secret_value_ok(m.group(2), 1) for m in SECRET_URL_RE.finditer(line)):
+        return True
+    return any(not _secret_value_ok(m.group(2), 8) for m in SECRET_KEY_RE.finditer(line))
+
+
+def secret_targets(root: Path, design_only: bool = False) -> list[Path]:
+    """秘密検出の対象。design_only は概要 HTML + 設計書（--docs の現行互換の範囲）。"""
+    root = Path(root)
+    if design_only:
+        base = root / "docs/設計書"
+        return [root / "docs/プロジェクト概要.html"] + (sorted(base.rglob("*.md")) if base.is_dir() else [])
+    out: list[Path] = [root / n for n in ("CLAUDE.md", "README.md", "CHANGELOG.md")]
+    for sub, pats in (("docs", ("*.md", "*.html")), (".claude", ("*.md",))):
+        base = root / sub
+        if base.is_dir():
+            for pat in pats:
+                out += sorted(base.rglob(pat))
+    return [p for p in out if p.name not in SECRET_EXCLUDE_NAMES and not p.name.startswith(".env")
+            and ".work" not in p.relative_to(root).parts]
+
+
+def check_secrets(root: Path = ROOT, report=None, design_only: bool = False) -> int:
+    """秘密らしき文字列を検査する（全フェーズで止める）。戻り値は `secret-scan: ok` で除外した行数。"""
+    chk = report or check
+    root = Path(root)
+    skipped = 0
+    for p in secret_targets(root, design_only):
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            continue
+        hits = []
+        for i, l in enumerate(lines, 1):
+            if SECRET_OPT_OUT in l:
+                skipped += 1
+            elif secret_hits(l):
+                hits.append(i)
+        rel = p.relative_to(root).as_posix()
+        chk(not hits, f"{rel}: 秘密らしき文字列（行 {', '.join(map(str, hits[:5]))}。値は 環境情報.md へ。"
+                      f"誤検知なら行に <!-- secret-scan: ok 理由 -->）" if hits else f"{rel}: 秘密らしき文字列なし")
+    if skipped and report is None:
+        info(f"秘密検出: secret-scan: ok で除外した行 {skipped} 行")
+    return skipped
 
 
 def iter_design_docs(root: Path) -> list[Path]:
@@ -192,11 +380,12 @@ def iter_design_docs(root: Path) -> list[Path]:
             if p.relative_to(base).parts[0] not in DESIGN_EXCLUDE_DIRS and p.name != "README.md"]
 
 
-def check_design_docs(root: Path = ROOT, template: bool = False, report=None) -> None:
+def check_design_docs(root: Path = ROOT, template: bool = False, report=None, secrets: bool = True) -> None:
     """docs/設計書/ の約束を検査する（メタ行・改訂履歴・索引・影響マップ・秘密・docs_freshness.py）。
 
-    template=True はスケルトンの template/ を対象にする（{{CREATED}} を許容、docs_freshness.py の結果は見ない）。
-    report は check(cond, msg) 互換の関数。省略時はこのモジュールの check。
+    template=True はスケルトンの template/ を対象にする（{{CREATED}} を許容、docs_freshness.py の結果と
+    フェーズ依存の検査は見ない）。report は check(cond, msg) 互換の関数。省略時はこのモジュールの check。
+    secrets=False は秘密検出を飛ばす（check_all が全範囲の check_secrets を別に呼ぶため）。
     """
     chk = report or check
     base = root / "docs/設計書"
@@ -253,30 +442,190 @@ def check_design_docs(root: Path = ROOT, template: bool = False, report=None) ->
                 chk(bool(impact_map.resolve_target(t, str(root))),
                     f"影響マップ {row.line_no} 行目: 正本が実ファイルに解決できる: {t}")
 
-    # 秘密らしき文字列（概要 HTML + 全設計書）
-    targets = [root / "docs/プロジェクト概要.html"] + sorted(base.rglob("*.md"))
-    for p in targets:
-        try:
-            lines = p.read_text(encoding="utf-8").splitlines()
-        except (OSError, UnicodeDecodeError):
-            continue
-        hits = [i for i, l in enumerate(lines, 1) if any(r.search(l) for r in SECRET_RES)]
-        chk(not hits, f"{p.relative_to(root).as_posix()}: 秘密らしき文字列（行 {', '.join(map(str, hits[:5]))}）" if hits
-            else f"{p.relative_to(root).as_posix()}: 秘密らしき文字列なし")
+    # 秘密らしき文字列（概要 HTML + 全設計書。check_all は全範囲を check_secrets で別に見る）
+    if secrets:
+        check_secrets(root, report=report, design_only=True)
 
-    # docs_freshness.py --quiet が整数を返す（鮮度の中身では fail にしない）
+    # docs_freshness.py --quiet が整数、--counts が 2 整数を返す（鮮度の中身では fail にしない）
     fresh = root / "scripts/docs_freshness.py"
     if fresh.is_file() and not template:
-        env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-        r = subprocess.run([sys.executable, str(fresh), "--quiet"], cwd=str(root), env=env,
-                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+        r = _run_py(fresh, "--quiet", cwd=root)
         chk(r.returncode == 0 and r.stdout.strip().isdigit(),
             f"docs_freshness.py --quiet が整数を返す（exit {r.returncode}: {r.stdout.strip()[:20]!r}）")
+        r = _run_py(fresh, "--counts", cwd=root)
+        nums = r.stdout.split()
+        if chk(r.returncode == 0 and len(nums) == 2 and all(n.isdigit() for n in nums),
+               f"docs_freshness.py --counts が 2 整数を返す（exit {r.returncode}: {r.stdout.strip()[:20]!r}）"):
+            if report is None:
+                by_phase("docs_unfilled", nums[1] == "0",
+                         f"雛形のままの設計書: 未記入 {nums[1]} 本（節を 1 行でも埋めてメタ行を書き換えれば外れる）")
+
+
+def _run_py(script: Path, *args: str, cwd: Path = ROOT) -> subprocess.CompletedProcess:
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
+    return subprocess.run([sys.executable, str(script), *args], cwd=str(cwd), env=env,
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+
+def check_drops_quiet() -> None:
+    """scripts/check_drops.py --quiet が 5 つの整数を返す（中身では fail にしない）。"""
+    drops = ROOT / "scripts/check_drops.py"
+    if not drops.is_file():
+        return
+    r = _run_py(drops, "--quiet")
+    nums = r.stdout.split()
+    check(r.returncode == 0 and len(nums) == 5 and all(n.isdigit() for n in nums),
+          f"check_drops.py --quiet が 5 つの整数を返す（exit {r.returncode}: {r.stdout.strip()[:30]!r}）")
+
+
+def check_drops_strict() -> None:
+    """--drops: scripts/check_drops.py --strict（警告があれば exit 1）。"""
+    drops = ROOT / "scripts/check_drops.py"
+    if not check(drops.is_file(), "scripts/check_drops.py がある"):
+        return
+    r = _run_py(drops, "--strict")
+    if not check(r.returncode == 0, f"check_drops.py --strict が exit 0（実際: {r.returncode}）"):
+        for line in (r.stdout + r.stderr).strip().splitlines()[-10:]:
+            print(f"   | {line}")
+
+
+# ---------------------------------------------------------------------------
+# ハーネスの形（harness スキル・.claude/ハーネス台帳.md）
+# ---------------------------------------------------------------------------
+_TABLE_SPLIT = re.compile(r"(?<!\\)\|")
+_BACKTICK = re.compile(r"`([^`]+)`")
+_PERMISSION_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*\(.*\)$")
+
+
+def _cells(line: str) -> list[str]:
+    return [c.strip() for c in _TABLE_SPLIT.split(line.strip().strip("|"))]
+
+
+def parse_ledger(root: Path) -> list[tuple[int, list[str]]]:
+    """台帳の表の行（見出し・区切りを除く）を (行番号, セル) で返す。読めなければ空。"""
+    try:
+        lines = (Path(root) / HARNESS_LEDGER).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return []
+    rows = []
+    for i, line in enumerate(lines, 1):
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = _cells(line)
+        if not cells or cells[0] in ("ID", "") or set(cells[0]) <= set(":-"):
+            continue
+        rows.append((i, cells))
+    return rows
+
+
+def _dest_paths(cell: str) -> list[str]:
+    """定義先セルのバッククォート内のパス（末尾の ` §n` は捨てる）。"""
+    return [re.sub(r"\s*§.*$", "", t).strip() for t in _BACKTICK.findall(cell) if t.strip()]
+
+
+def section_nine_patterns(root: Path) -> list[tuple[str, list[str]]]:
+    """05 §9 の表のうち状態が「決定」の行の (操作, deny 列の権限パターン)。"""
+    try:
+        text = (Path(root) / "docs/設計書/05-セキュリティ設計.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return []
+    m = re.search(r"^## 9\..*?$(.*?)(?=^## )", text, re.M | re.S)
+    if not m:
+        return []
+    out = []
+    for line in m.group(1).splitlines():
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = _cells(line)
+        if len(cells) >= 4 and cells[-1] == "決定":
+            pats = [t for t in _BACKTICK.findall(cells[2]) if _PERMISSION_PATTERN.match(t)]
+            out.append((cells[0][:30], pats))
+    return out
+
+
+def check_harness(root: Path = ROOT, report=None, template: bool = False) -> None:
+    """ハーネスの形を検査する。定義したものの形だけを見る（何も定義しなければ対象ゼロ）。
+
+    止める: agents の model・台帳の ID/状態/定義済の定義先の実在・05 §9 決定行の deny パターン。
+    フェーズ依存（harness_unlisted）: コア以外の skill・rules・agents・hook が台帳の定義済に無い。template=True では見ない。
+    """
+    chk = report or check
+    root = Path(root)
+
+    # agents の model
+    agents = root / ".claude/agents"
+    if agents.is_dir():
+        for p in sorted(agents.rglob("*.md")):
+            fm = parse_frontmatter(p) or {}
+            model = fm.get("model", "")
+            chk(model in AGENT_MODELS or model.startswith("claude-"),
+                f"agents {p.relative_to(root).as_posix()}: frontmatter に model（{' / '.join(AGENT_MODELS)} か claude-…）"
+                f"がある（実際: {model!r}）")
+
+    # 台帳
+    rows = parse_ledger(root)
+    defined: list[str] = []
+    for line_no, cells in rows:
+        where = f"{HARNESS_LEDGER} {line_no} 行目"
+        chk(bool(re.fullmatch(r"HN-\d{2,}", cells[0])), f"{where}: ID が HN-NN の形（{cells[0]!r}）")
+        if not chk(len(cells) >= 7, f"{where}: 7 列（ID・観点・内容・きっかけ・状態・定義先・更新）"):
+            continue
+        state, dest = cells[4], cells[5]
+        chk(state in HARNESS_STATES, f"{where}: 状態が {' / '.join(HARNESS_STATES)} のどれか（{state!r}）")
+        if state == "定義済":
+            paths = _dest_paths(dest)
+            if chk(bool(paths), f"{where}: 定義済の定義先にバッククォートでパスがある"):
+                for d in paths:
+                    chk((root / d.rstrip("/")).exists(), f"{where}: 定義先が実在する: {d}")
+                defined += paths
+    if not rows:
+        ok("ハーネス台帳: 行なし（対象ゼロ）")
+
+    # 05 §9 の決定行 ↔ settings.json の deny
+    deny: list[str] = []
+    try:
+        deny = list(json.loads((root / ".claude/settings.json").read_text(encoding="utf-8"))
+                    .get("permissions", {}).get("deny", []))
+    except (OSError, ValueError, AttributeError):
+        pass
+    for op, pats in section_nine_patterns(root):
+        for pat in pats:
+            chk(pat in deny, f"05 §9 の決定行「{op}」の {pat} が .claude/settings.json の permissions.deny にある")
+
+    if template or report is not None:
+        return
+    # 台帳に無いハーネス（フェーズ依存）
+    def listed(prefix: str) -> bool:
+        return any(d == prefix or d.startswith(prefix + "/") or d.startswith(prefix + ".") for d in defined)
+
+    unlisted: list[str] = []
+    skills = root / ".claude/skills"
+    if skills.is_dir():
+        unlisted += [f"skill {d.name}" for d in sorted(skills.iterdir())
+                     if d.is_dir() and d.name not in CORE_SKILLS and not listed(f".claude/skills/{d.name}")]
+    rules = root / ".claude/rules"
+    if rules.is_dir():
+        unlisted += [f"rule {p.name}" for p in sorted(rules.glob("*.md"))
+                     if p.name not in CORE_RULES and not listed(f".claude/rules/{p.stem}")]
+    if agents.is_dir():
+        unlisted += [f"agent {p.name}" for p in sorted(agents.rglob("*.md"))
+                     if not listed(p.relative_to(root).with_suffix("").as_posix())]
+    hooks = root / ".claude/hooks"
+    if hooks.is_dir():
+        stems = sorted({p.stem for p in hooks.iterdir()
+                        if p.is_file() and p.suffix in (".sh", ".py") and p.name not in CORE_HOOKS})
+        unlisted += [f"hook {s}" for s in stems if not listed(f".claude/hooks/{s}")]
+    by_phase("harness_unlisted", not unlisted,
+             f"台帳に無いハーネス {len(unlisted)} 件（{', '.join(unlisted[:5])}）。"
+             f"{HARNESS_LEDGER} に定義済で 1 行ずつ書く（harness スキル）" if unlisted
+             else "台帳に無いハーネスなし")
 
 
 def check_all() -> None:
     # 必須ファイル・ディレクトリ
     for rel in REQUIRED_FILES:
+        if rel in PENDING_FILES and not (ROOT / rel).is_file():
+            continue
         check((ROOT / rel).is_file(), f"必須ファイル: {rel}")
     for rel in REQUIRED_DIRS:
         check((ROOT / rel).is_dir(), f"必須ディレクトリ: {rel}")
@@ -324,6 +673,8 @@ def check_all() -> None:
         for s in walk_json_strings(settings.get("hooks", {})):
             referenced.update(re.findall(r"\.claude/hooks/[\w./-]+\.(?:sh|py)", s))
         for rel in sorted(referenced):
+            if rel in PENDING_FILES and not (ROOT / rel).is_file():
+                continue
             check((ROOT / rel).is_file(), f"hooks が参照するスクリプトが実在: {rel}")
 
     # プレースホルダ残存なし
@@ -350,8 +701,17 @@ def check_all() -> None:
     # 概要 HTML
     check_overview()
 
-    # 設計書
-    check_design_docs()
+    # 設計書（秘密検出は下の check_secrets が全範囲で見る）
+    check_design_docs(secrets=False)
+
+    # 秘密（docs/ 全体・CLAUDE.md・README.md・CHANGELOG.md・.claude/**/*.md）
+    check_secrets()
+
+    # ハーネスの形
+    check_harness()
+
+    # 落ち先の検査が動く（中身では fail にしない。一覧は python3 scripts/check_drops.py）
+    check_drops_quiet()
 
     # .gitignore
     gi = ROOT / ".gitignore"
@@ -390,13 +750,20 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     except Exception:
         pass
-    if "--overview" in sys.argv[1:]:
+    args = sys.argv[1:]
+    if "--overview" in args:
         check_overview()
-    elif "--docs" in sys.argv[1:]:
+    elif "--docs" in args:
         check_design_docs()
+    elif "--secrets" in args:
+        check_secrets()
+    elif "--harness" in args:
+        check_harness()
+    elif "--drops" in args:
+        check_drops_strict()
     else:
         check_all()
-    print(f"pass={PASS} fail={FAIL}")
+    print(f"pass={PASS} fail={FAIL} warn={WARN}")
     return 1 if FAIL else 0
 
 

@@ -1,7 +1,6 @@
 ---
 name: new-project
 description: 新しい案件・プロジェクトのフォルダをスケルトンから 1 コマンドで作る。「新しいプロジェクトを作って」「スケルトンから作って」「案件フォルダを立ち上げて」「プロジェクトを初期化して」「既存プロジェクトにスケルトンを適用して」で使う。タスク管理・.work 作業領域・概要 HTML・環境情報・CLAUDE.md/rules/skills/hooks が揃った案件フォルダを生成し、既存フォルダには --merge で足りないものだけ追加する。
-allowed-tools: Bash(python3 *), Bash(python *)
 ---
 
 # new-project — スケルトンから案件フォルダを作る
