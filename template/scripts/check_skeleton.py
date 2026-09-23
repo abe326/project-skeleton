@@ -98,14 +98,6 @@ REQUIRED_FILES = [
     ".claude/skills/pickup/SKILL.md",
     "scripts/check_drops.py",
 ]
-# TODO(v1.2.0 統合時に削除): 担当 Y の実装が揃うまで、存在するときだけ必須として数えるもの
-PENDING_FILES = {
-    ".claude/hooks/drops.py", ".claude/hooks/pickup_state.py",
-    ".claude/hooks/pickup_cue.sh", ".claude/hooks/pickup_cue.py",
-    ".claude/hooks/pickup_check.sh", ".claude/hooks/pickup_check.py",
-    ".claude/skills/pickup/SKILL.md", "scripts/check_drops.py",
-}
-PENDING_MARKERS = {"recent-decisions", "open-issues", "milestones"}
 REQUIRED_DIRS = [
     ".work/証跡", ".work/機密", ".work/一時", ".work/_bk",
     "docs/案件/01_タスク管理/open",
@@ -258,8 +250,6 @@ def check_overview() -> None:
     for name in OVERVIEW_MARKERS:
         b = len(re.findall(rf"<!--\s*BEGIN:{re.escape(name)}\s*-->", html))
         e = len(re.findall(rf"<!--\s*END:{re.escape(name)}\s*-->", html))
-        if name in PENDING_MARKERS and b == e == 0:
-            continue
         check(b == 1 and e == 1, f"概要 HTML マーカー {name}: BEGIN={b} END={e}")
     check(not re.search(r"<script[^>]*\ssrc=", html, re.I), "概要 HTML に外部 <script src= が無い")
     check(not re.search(r"<link\s[^>]*href=", html, re.I), "概要 HTML に外部 <link href= が無い")
@@ -624,8 +614,6 @@ def check_harness(root: Path = ROOT, report=None, template: bool = False) -> Non
 def check_all() -> None:
     # 必須ファイル・ディレクトリ
     for rel in REQUIRED_FILES:
-        if rel in PENDING_FILES and not (ROOT / rel).is_file():
-            continue
         check((ROOT / rel).is_file(), f"必須ファイル: {rel}")
     for rel in REQUIRED_DIRS:
         check((ROOT / rel).is_dir(), f"必須ディレクトリ: {rel}")
@@ -673,8 +661,6 @@ def check_all() -> None:
         for s in walk_json_strings(settings.get("hooks", {})):
             referenced.update(re.findall(r"\.claude/hooks/[\w./-]+\.(?:sh|py)", s))
         for rel in sorted(referenced):
-            if rel in PENDING_FILES and not (ROOT / rel).is_file():
-                continue
             check((ROOT / rel).is_file(), f"hooks が参照するスクリプトが実在: {rel}")
 
     # プレースホルダ残存なし
