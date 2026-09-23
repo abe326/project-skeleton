@@ -1,0 +1,8 @@
+# project-skeleton リポ自身の無視設定。
+# template/ 配下は生成物なので、ここで除外しない(template 用の無視設定は template/_gitignore)。
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+*:Zone.Identifier
+/.claude/settings.local.json
