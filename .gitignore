@@ -6,3 +6,5 @@ __pycache__/
 Thumbs.db
 *:Zone.Identifier
 /.claude/settings.local.json
+# リポ自身の作業領域(発表資料など)。公開しない
+/.work/
