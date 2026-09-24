@@ -5,6 +5,8 @@ Claude Code で進める案件・プロジェクトのフォルダを、同じ�
 `new-project` になる(`~/.claude/skills/new-project` → このリポ)。
 python3 の標準ライブラリだけで動き、外部依存はない。
 
+紹介資料(LT「AI を入れる準備で、止まらない仕組み」): https://www.docswell.com/s/326/Z9N73J-2026-09-25-004350
+
 ## 構成
 
 ```
