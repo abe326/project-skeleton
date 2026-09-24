@@ -130,6 +130,30 @@ def local_targets(rel_path: str, root: str) -> list[str]:
         return []
 
 
+def addable_docs(rel_path: str, root: str) -> list[str]:
+    """まだ足していない設計書のうち、rel_path が当たるもの（docs/設計書/template/catalog.json の影響マップの行で判定）。
+
+    文書を育てる方式では、足していない文書の行は README の影響マップに無い。ここで「足す候補」として拾う。
+    読めない・壊れているときは空。戻り値は catalog のファイル名（例 `05-セキュリティ.md`）。
+    """
+    import json
+    try:
+        with open(os.path.join(root, DESIGN_DIR, "template", "catalog.json"), encoding="utf-8") as f:
+            docs = json.load(f).get("docs", {})
+    except (OSError, ValueError):
+        return []
+    out: list[str] = []
+    for no, entry in sorted(docs.items()):
+        if globmod.glob(os.path.join(globmod.escape(os.path.join(root, DESIGN_DIR)), f"{no}-*")):
+            continue                                        # 足してある（旧い名前・別の拡張子も含む）
+        for row in entry.get("rows", {}).get("## 変えたもの → 一緒に直す正本", []):
+            cells = [c.strip() for c in row.strip().strip("|").split("|")]
+            globs = [g.strip() for tok in _BACKTICK.findall(cells[0]) for g in re.split(r"[・,、\s]+", tok) if g.strip()]
+            if any(glob_matches(rel_path, g) for g in globs) and entry.get("file") not in out:
+                out.append(entry.get("file"))
+    return out
+
+
 def resolve_targets(targets: list[str], root: str) -> list[str]:
     """複数 target をまとめて展開する。解決できないものは生の文字列のまま残す。"""
     out: list[str] = []

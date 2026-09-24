@@ -28,7 +28,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from impact_map import load_impact_map, local_targets, match_rows, resolve_targets  # noqa: E402
+from impact_map import addable_docs, load_impact_map, local_targets, match_rows, resolve_targets  # noqa: E402
 from work_area_guard import relative_to_root  # noqa: E402
 
 SKIP_PREFIXES = (".work/", ".claude/", "docs/案件/01_タスク管理/")
@@ -84,6 +84,25 @@ def is_meeting(rel: str) -> bool:
     return "/" not in name and name != "README.md"
 
 
+NON_SOURCE_PREFIXES = ("docs/", "scripts/", ".work/", ".claude/")
+NON_SOURCE_FILES = {"CLAUDE.md", "README.md", "CHANGELOG.md", ".gitignore", ".gitattributes", ".editorconfig",
+                    ".env.example", "環境情報.md", "案件情報.md"}
+
+
+def is_source(rel: str) -> bool:
+    """実装・設定の変更か（文書・スケルトンの仕組み・作業領域・ルート直下の定型ファイル以外）。"""
+    return not rel.startswith(NON_SOURCE_PREFIXES) and rel not in NON_SOURCE_FILES
+
+
+def suggest_level(phase: str) -> str:
+    """phase_suggest のレベル（Build では none）。分からなければ none（静かな側に倒す）。"""
+    try:
+        import phase as phase_mod  # noqa: WPS433
+        return phase_mod.level("phase_suggest", phase)
+    except Exception:
+        return "none"
+
+
 def candidate_example(candidates: list[str]) -> str:
     """落ち先の書き方の例（候補: 05 §n）。設計書の番号が取れなければ NN。"""
     for c in candidates:
@@ -135,23 +154,31 @@ def main() -> int:
             targets += [t for t in r.targets if t not in targets]
         targets += [t for t in local_targets(rel, root) if t not in targets]   # 差し込み口（任意）
         candidates = [t for t in resolve_targets(targets, root) if t != rel]
-        if not candidates:
-            return 0
 
         phase, lvl = current_level(root)
-        if lvl == "none":
-            return 0
-        if lvl == "info":
+        notes: list[str] = []
+        # 実装・設定の変更を始めた（Sketch の間だけ、セッション 1 回）: Build の目安。切り替えは AI が判断する
+        if is_source(rel) and suggest_level(phase) != "none" and not already_seen(session_id, f"build-nudge:{phase}"):
+            notes.append(f"[フェーズ] 実装・設定の変更を始めた（{rel}）。Build の目安に当たる。AI が判断して "
+                         "python3 .claude/hooks/phase.py --set Build で切り替え、報告で 1 行伝える")
+        # まだ足していない設計書に関わる（文書ごとにセッション 1 回）: 足す候補。足すのは承認後
+        for doc in addable_docs(rel, root):
+            if not already_seen(session_id, f"addable:{doc}"):
+                no = doc[:2]
+                notes.append(f"[文書の候補] {rel} はまだ無い {doc} に関わる。要るなら足す候補として報告し、承認を得てから "
+                             f"python3 scripts/add_doc.py {no}（それまでの決定は課題の --to に「候補: {no} §n」）")
+
+        if candidates and lvl == "info":
             # Sketch の間: 候補の組み合わせに関係なくセッションで 1 回だけ
-            if already_seen(session_id, f"phase:{phase}:info"):
-                return 0
-            emit(f"[設計書候補] {rel} の変更は {'、'.join(candidates)} に関わる。{phase} の間は直さなくてよい。"
-                 f"決まったことなら落ち先に「→ {candidate_example(candidates)}」と書く（pickup スキル）")
-            return 0
-        if already_seen(session_id, f"phase:{phase}|" + "|".join(sorted(candidates))):
-            return 0
-        emit(f"[設計書追随] {rel} を変更。更新候補: {'、'.join(candidates)}。"
-             f"区切りで、決まったことを 1 行拾う（sync-design-docs スキル。影響マップ: {README}）")
+            if not already_seen(session_id, f"phase:{phase}:info"):
+                notes.append(f"[設計書候補] {rel} の変更は {'、'.join(candidates)} に関わる。{phase} の間は直さなくてよい。"
+                             f"決まったことなら落ち先に「→ {candidate_example(candidates)}」と書く（pickup スキル）")
+        elif candidates and lvl == "warn":
+            if not already_seen(session_id, f"phase:{phase}|" + "|".join(sorted(candidates))):
+                notes.append(f"[設計書追随] {rel} を変更。更新候補: {'、'.join(candidates)}。"
+                             f"区切りで、決まったことを 1 行拾う（sync-design-docs スキル。影響マップ: {README}）")
+        if notes:
+            emit("\n".join(notes))
     except Exception:
         pass
     return 0

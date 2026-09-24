@@ -379,7 +379,13 @@ def ledger_ids(root: str) -> set[str]:
 
 
 def design_doc_exists(root: str, nn: str) -> bool:
-    return bool(globmod.glob(os.path.join(globmod.escape(os.path.join(root, DESIGN_DIR)), f"{nn}-*.md")))
+    """番号 nn の設計書があるか（拡張子・名前は問わない。template/ の中は数えない）。"""
+    return any(os.path.isfile(p) for p in globmod.glob(os.path.join(globmod.escape(os.path.join(root, DESIGN_DIR)), f"{nn}-*")))
+
+
+def design_doc_addable(root: str, nn: str) -> bool:
+    """番号 nn の設計書がまだ無く、docs/設計書/template/ にあって足せるか（`候補: 05 §3` の行き先）。"""
+    return bool(globmod.glob(os.path.join(globmod.escape(os.path.join(root, DESIGN_DIR, "template")), f"{nn}-*.md")))
 
 
 def adr_exists(root: str, num: str) -> bool:
@@ -406,7 +412,8 @@ def resolve(drop: Drop, items: dict[str, Item], root: str, ledger: set[str] | No
         if not t:
             return Problem("format", f"書式違反「{short(drop.raw, 20)}」: 反映先が空")
         m = re.match(r"^(\d{2})(?!\d)", t)
-        if m and not design_doc_exists(root, m.group(1)):
+        # 候補はまだ足していない文書でもよい（文書を育てる: template/ にあれば、足すときに反映する先）
+        if m and not design_doc_exists(root, m.group(1)) and not (k == "candidate" and design_doc_addable(root, m.group(1))):
             return Problem("missing", f"文書不在「{m.group(1)}」（docs/設計書/{m.group(1)}-*.md が無い）")
         if k == "candidate" and not m:
             return Problem("format", f"書式違反「{short(drop.raw, 20)}」: 候補は `候補: 05 §3` の形")
@@ -534,7 +541,10 @@ def design_docs(root: str) -> list[str]:
     base = os.path.join(root, DESIGN_DIR)
     out = []
     for p in sorted(globmod.glob(os.path.join(globmod.escape(base), "**", "*.md"), recursive=True)):
-        out.append(os.path.relpath(p, root).replace("\\", "/"))
+        rel = os.path.relpath(p, root).replace("\\", "/")
+        if rel.startswith(DESIGN_DIR + "/template/"):
+            continue                                        # 足す前の元。本文の例示を参照として数えない
+        out.append(rel)
     return out
 
 

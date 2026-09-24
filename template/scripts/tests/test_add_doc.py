@@ -98,6 +98,40 @@ class AddDocTest(unittest.TestCase):
             self.assertEqual(self.add(root, "42").returncode, 1)
 
 
+class GrowNudgeTest(unittest.TestCase):
+    """設計書追随 hook: まだ足していない文書に関わる変更で「文書の候補」、Sketch で実装を始めたら「フェーズ」を知らせる。"""
+
+    def hook(self, root, path: str, phase: str, sid: str = ""):
+        import json
+        import os
+        import subprocess
+        d = {"tool_name": "Write", "tool_input": {"file_path": path}}
+        if sid:
+            d["session_id"] = sid
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=str(root), CLAUDE_SKELETON_PHASE=phase, PYTHONDONTWRITEBYTECODE="1",
+                   CLAUDE_DOCS_REMINDER_STATE_DIR=str(root / ".state"))
+        return subprocess.run(["bash", str(root / ".claude/hooks/design_docs_reminder.sh")], input=json.dumps(d),
+                              env=env, capture_output=True, text=True, encoding="utf-8", timeout=60).stdout
+
+    def test_nudges(self):
+        with TempProject(copy=(".claude/hooks", "docs/設計書", "scripts/add_doc.py")) as root:
+            (root / ".state").mkdir()
+            out = self.hook(root, "src/auth/login.py", "Sketch", "s1")
+            self.assertIn("[文書の候補]", out)
+            self.assertIn("05-セキュリティ.md", out)
+            self.assertIn("06-品質と確認.md", out)
+            self.assertIn("[フェーズ]", out)
+            again = self.hook(root, "src/auth/logout.py", "Sketch", "s1")
+            self.assertEqual(again.strip(), "")                                      # 同じセッションでは 1 回だけ
+            self.assertNotIn("[フェーズ]", self.hook(root, "src/auth/login.py", "Build", "s2"))
+            self.assertNotIn("[フェーズ]", self.hook(root, "docs/設計書/01-概要.md", "Sketch", "s3"))
+            run_py(root / "scripts/add_doc.py", "05", cwd=root)
+            out = self.hook(root, "src/auth/login.py", "Build", "s4")
+            self.assertNotIn("05-セキュリティ.md に関わる。要るなら", out)            # 足したら候補ではなく追随
+            self.assertIn("[設計書追随]", out)
+            self.assertIn("06-品質と確認.md", out)                                   # 06 はまだ候補
+
+
 class CatalogConsistencyTest(unittest.TestCase):
     """テンプレの catalog.json・template/ の文書・README の見出しが噛み合っている。"""
 
