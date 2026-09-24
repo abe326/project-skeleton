@@ -80,6 +80,8 @@ NEXT_STEPS_MERGE = """\
      （設定しないと立ち上げ扱いになり、開発中の案件では設計書追随が弱まる）
   3. スケルトンの CHANGELOG.md の「既存プロジェクトへの適用」の手順に沿って残りを移す
   4. python3 scripts/check_skeleton.py で fail=0 を確かめる
+  5. タスク管理を使うなら python3 docs/案件/01_タスク管理/build.py（--merge では build を実行していない）
+  既存案件の固定の置き場・入れ子のリポは .claude/project.json に書く（テンプレのコードは書き換えない）
   初めて Claude Code で開くとき: 対話起動（claude）でフォルダを開き、ワークスペースを信頼する（SETUP.md §8）
   * 他マシンと同期しているフォルダなら、同期が完了してから git を触る"""
 
@@ -245,6 +247,7 @@ def main() -> int:
     version = read_version()
     dest = resolve_dest(args.dest)
     dest_exists = dest.exists()
+    merging = bool(args.merge and dest_exists)
 
     if dest_exists and not dest.is_dir():
         print(f"エラー: 生成先がディレクトリではありません: {dest}")
@@ -388,21 +391,23 @@ def main() -> int:
         else:
             warnings.append(f"{AREAS_JSON.as_posix()} が無いため領域を追加できません")
 
-    # --- 実行ビット -----------------------------------------------------
+    # --- 実行ビット(今回書いたファイルだけ。既存の案件のファイルや node_modules は触らない) ---
     exec_files: list[str] = []
-    for p in dest.rglob("*"):
-        if ".git" in p.parts:
-            continue
-        if p.is_file() and p.suffix in (".sh", ".py"):
-            exec_files.append(p.relative_to(dest).as_posix())
+    for rel_str in created:
+        p = dest / rel_str
+        if p.suffix in (".sh", ".py"):
+            exec_files.append(rel_str)
             try:
                 os.chmod(p, p.stat().st_mode | 0o111)
             except OSError:
                 pass
 
     # --- build.py(data.js と概要 HTML のスナップショット) --------------
+    # --merge では実行しない(案件の既存の build.py が data.js を書き換え、dry-run と結果がずれるため)
     build_py = dest / BUILD_PY
-    if build_py.exists():
+    if merging:
+        pass
+    elif build_py.exists():
         print()
         print(f"== {BUILD_PY.as_posix()} を実行")
         r = run([sys.executable, str(build_py)], cwd=dest)
@@ -458,7 +463,7 @@ def main() -> int:
     for w in warnings:
         print(f"  警告: {w}")
 
-    print_next_steps("merge" if args.merge and dest_exists else "new", args, differs)
+    print_next_steps("merge" if merging else "new", args, differs)
     return 0
 
 

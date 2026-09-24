@@ -159,6 +159,28 @@ class MergeClassifyTest(unittest.TestCase):
             self.assertIn("phase.py --set", r.stdout)
             self.assertNotIn("最初はこの 4 つだけ", r.stdout)
 
+    def test_merge_side_effects(self):
+        """--merge は build.py を実行せず、既存ファイルの実行ビットを変えない。新しく作ったものには付ける。"""
+        with tempfile.TemporaryDirectory(prefix="skel-init-test-") as tmp:
+            dest = Path(tmp) / "proj"
+            (dest / "docs/案件/01_タスク管理").mkdir(parents=True)
+            marker = dest / "build-ran.txt"
+            (dest / "docs/案件/01_タスク管理/build.py").write_text(
+                # check_skeleton.py が呼ぶ --check（書き込まない）は数えない
+                f"import sys\nfrom pathlib import Path\nif '--check' not in sys.argv:\n"
+                f"    Path({str(marker)!r}).write_text('x')\n", encoding="utf-8")
+            own = dest / "tools/own.py"
+            own.parent.mkdir()
+            own.write_text("print('案件のスクリプト')\n", encoding="utf-8")
+            os.chmod(own, 0o644)
+            r = run_init(str(dest), "--name", "検証", "--slug", "tinit6", "--merge", "--no-git")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertFalse(marker.exists(), "merge で build.py が実行された")
+            self.assertIn("build.py", r.stdout.split("既存プロジェクトへの適用", 1)[1])
+            self.assertEqual(own.stat().st_mode & 0o111, 0, "既存ファイルに実行ビットが付いた")
+            if os.name != "nt":
+                self.assertTrue((dest / ".claude/hooks/phase.py").stat().st_mode & 0o100)
+
 
 class UnitTest(unittest.TestCase):
     def test_is_mechanism(self):

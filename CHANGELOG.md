@@ -15,6 +15,41 @@
 - 手作業が要るものはここに列挙する
 ```
 
+## [1.3.0] - 2026-09-24
+
+v1.2.0 を既存案件 2 つに当てる分析で見つかった、スケルトン側の不具合と、案件ごとの形を受け止められない箇所 9 件への対応。
+方針: **案件ごとの違いは設定ファイル 1 本（`.claude/project.json`）と差し込み口 1 つで受け、テンプレのコードは案件で書き換えずに済むようにする。**
+
+### 変更
+- 追加: `.claude/project.json` と共有モジュール `.claude/hooks/project_config.py`
+  - `work_area_allow`: 置き場ガードが通すルート相対の glob（案件の仕組みが固定で使う置き場。例 `.work/一時/tldv同期/**`）
+  - `nested_repos`: 中に別の git リポがあるフォルダ。影響マップの正本の解決と、鮮度メタの `<リポ名>@<sha>` に使う
+  - 読めない・壊れているときは既定値（空）で動き、hook は止めない。形の誤りは `check_skeleton.py` が NG にする
+- 追加: 設計書追随の差し込み口 `.claude/hooks/impact_map_local.py`（任意）。`targets(rel_path) -> list[str]` の結果を
+  影響マップの表の結果に足す（先勝ち・除外・フォールバックなど表で書きにくい判定用）。置いたら表にそれを指す行を書く
+  （表を唯一の入口に保つ。`check_skeleton.py` が見る）
+- 追加: 鮮度メタで入れ子リポの sha を並べられる（`/ repo@abc1234・sub-repo@def5678`）。`docs_freshness.py` が
+  `git -C <入れ子リポ>` で差分・未コミットを見る
+- 変更: `init.py --merge` は build.py を実行しない（dry-run と結果がずれ、案件の data.js を書き換えていた）。
+  実行ビットは今回作ったファイルにだけ付ける（生成先の全走査をやめた）
+- 変更: hook のテスト一式を `.claude/hooks/tests/skeleton/` へ移した（既存案件の `tests/run-all.sh` や `hook-cases*.txt`
+  の glob とぶつかっていた）。設計書追随のケースはテンプレの影響マップの実物ではなく `reminder-fixture/` の固定の表で流す
+- 変更: 打合せ記録の `## 要約` > `### 決定事項` のような H3 の区切りも読む（会議ツールの要約をそのまま貼る形）
+- 修正: agents の検査で `_` 始まりのファイル（`_共通.md` などの共通の本文）に `model` を求めていた
+
+### 既存プロジェクトへの適用
+- `python3 <skeleton>/scripts/init.py <既存パス> --name "<表示名>" --merge` で新しいファイル（`project_config.py`・
+  `project.json`・`tests/skeleton/**`・`test_project_config.py`）を追加し、differs に出た仕組みを取り込む。
+  build は走らないので、タスク管理を使うなら取り込み後に `python3 docs/案件/01_タスク管理/build.py`
+- v1.2.0 から生成した案件は、旧テストを移す: `.claude/hooks/tests/` 直下の `run-all.sh`・`hook-cases-*.txt`・
+  `run_*_cases.py`・`drops-cases/` を、merge で入った `tests/skeleton/` の同名と見比べ、案件で足したケースがあれば
+  `tests/skeleton/` 側へ写してから旧ファイルを片付ける。`.claude/settings.json` の allow の
+  `Bash(bash .claude/hooks/tests/run-all.sh)` を `…/tests/skeleton/run-all.sh` に直す
+- 既存案件で置き場ガードが案件の固定パスを止めるなら、`work_area_guard.py` を書き換えずに `.claude/project.json` の
+  `work_area_allow` に足す。入れ子リポがあれば `nested_repos` に書く
+- 影響マップの表で書けない判定をコードで持っている案件は、その判定を `.claude/hooks/impact_map_local.py` の
+  `targets()` に移し、`docs/設計書/README.md` の影響マップにそれを指す行を 1 行足す
+
 ## [1.2.0] - 2026-09-23
 
 v1.1.0 を架空の案件で実際に使ったレビュー(初動が重い・決定が落ちる・未決の置き場が 4 つ・設計書追随が空振り・

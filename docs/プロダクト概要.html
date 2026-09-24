@@ -157,7 +157,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
 
 <header>
   <div class="eyebrow">
-    <span class="chip v">v1.2.0</span>
+    <span class="chip v">v1.3.0</span>
     <span class="chip">Claude Code 専用</span>
     <span class="chip">python3 標準ライブラリのみ</span>
   </div>
@@ -187,7 +187,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="strengths">
     <div class="st">
       <h3>1 コマンドで、毎回同じ形</h3>
-      <p>生成・タスク一覧の初期化・git の初回コミット・構成の検査までを 1 回で通します。既存フォルダには <code>--merge</code> で足りないファイルだけを追加し、既存ファイルには触れません。</p>
+      <p>生成・タスク一覧の初期化・git の初回コミット・構成の検査までを 1 回で通します。既存フォルダには <code>--merge</code> で足りないファイルだけを追加し、既存ファイルには触れません。案件ごとの違いは <code>.claude/project.json</code> に書き、テンプレのコードは書き換えずに済みます。</p>
       <p class="by"><span class="tag m">機械</span>init.py ／ 外部依存なし</p>
     </div>
     <div class="st">
@@ -207,7 +207,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
     </div>
     <div class="st">
       <h3>影響の対応表は 1 つだけ</h3>
-      <p>「変えたもの → 一緒に直す文書」の表を設計書の索引に 1 つだけ持ちます。hook・検査・skill が同じ表を読むので、仕組みごとに対応がずれません。</p>
+      <p>「変えたもの → 一緒に直す文書」の表を設計書の索引に 1 つだけ持ちます。hook・検査・skill が同じ表を読むので、仕組みごとに対応がずれません。表で書きにくい判定は差し込み口のコードに書けますが、そのときも表に 1 行を置き、入口は表のままにします。</p>
       <p class="by"><span class="tag m">機械</span>impact_map.py が表を直接読む</p>
     </div>
     <div class="st">
@@ -313,11 +313,11 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="sec-label">検査で自己保証する</div>
   <h2>スケルトン自身も、生成物も、検査が通ることを確かめている</h2>
   <div class="checks">
-    <div class="ck"><div class="n">272<small>fail 0</small></div><div class="l">スケルトン自身の検査項目。hook のテスト 241 件・単体テスト 56 件・init のテスト 18 件を含む</div></div>
-    <div class="ck"><div class="n">317<small>fail 0</small></div><div class="l">生成した案件フォルダの検査項目。設計書・落ち先・秘密・ハーネス・フェーズ</div></div>
+    <div class="ck"><div class="n">278<small>fail 0</small></div><div class="l">スケルトン自身の検査項目。hook と単体のテスト 264 件・init のテスト 19 件を含む</div></div>
+    <div class="ck"><div class="n">331<small>fail 0</small></div><div class="l">生成した案件フォルダの検査項目。設計書・落ち先・秘密・ハーネス・フェーズ</div></div>
     <div class="ck"><div class="n">4<small>すべて検知</small></div><div class="l">わざと壊して確かめた異常系。鮮度情報の欠落・索引漏れ・秘密・解決できない参照</div></div>
   </div>
-  <p class="body" style="font-size:13.5px">数値は v1.2.0 の end-to-end 検証の結果です。</p>
+  <p class="body" style="font-size:13.5px">数値は v1.3.0 の end-to-end 検証の結果です。</p>
 </section>
 
 <section>
@@ -375,6 +375,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
     <div class="it done"><div class="d">2026-09-23 ／ v1.0.0</div><h3>初版</h3><p>タスク管理・作業領域・概要資料・環境情報・skill 5 本・hook 2 本を揃えた。</p></div>
     <div class="it done"><div class="d">2026-09-23 ／ v1.1.0</div><h3>設計書を常に最新に保つ仕組み</h3><p>設計書 03〜09 と runbook、skill 2 本、設計書追随の hook、鮮度チェック、設計書の検査を追加した。</p></div>
     <div class="it done"><div class="d">2026-09-24 ／ v1.2.0</div><h3>進めながら揃い、何も落とさない</h3><p>フェーズ、落ち先と課題への一本化、区切りで拾う hook、ハーネスの台帳と昇格、案件で揃う範囲の明確化。上の「v1.2.0 で入れたもの」を参照。</p></div>
+    <div class="it done"><div class="d">2026-09-24 ／ v1.3.0</div><h3>既存の案件に入れられる</h3><p>案件ごとの違いを <code>.claude/project.json</code>（固定の置き場・入れ子のリポ）と設計書追随の差し込み口で受け、テンプレのコードは案件で書き換えずに済むようにした。<code>--merge</code> は build を実行せず、hook のテストは既存の仕組みとぶつからない場所へ移し、打合せ記録は H3 の見出しも読む。</p></div>
     <div class="it"><div class="d">次</div><h3>各マシンへのグローバル配備</h3><p>どのセッションからでも「プロジェクトを作って」で呼べるようにする。手順は SETUP.md。</p></div>
     <div class="it"><div class="d">次</div><h3>既存の案件への適用</h3><p><code>--merge</code> で新しいファイルを配り、差分が出たものは手で取り込む。手順は CHANGELOG の「既存プロジェクトへの適用」。</p></div>
     <div class="it"><div class="d">いずれ</div><h3>公開</h3><p>リポジトリは現在非公開。個人名・ホスト名・顧客名を書かない前提で作っている。</p></div>
@@ -382,7 +383,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
 </section>
 
 <footer>
-  <span>project-skeleton v1.2.0</span>
+  <span>project-skeleton v1.3.0</span>
   <span>正本はリポジトリの docs/プロダクト概要.html</span>
 </footer>
 

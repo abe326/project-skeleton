@@ -6,7 +6,8 @@ stdin の JSON から tool_input.file_path を読み、次の順に処理する�
   1. ルート内なら、触ったパスを pickup_state に記録する（Stop hook pickup_check.py の材料。.work/ も記録）
   2. 打合せ記録（docs/案件/02_打合せ/*.md）: フェーズに関係なく、ファイルごとにセッション 1 回
      「[落ち先] … 各行に落ち先 …」を返す（影響マップは引かない）
-  3. それ以外は docs/設計書/README.md の影響マップ（解釈は impact_map.py）に当たれば、
+  3. それ以外は docs/設計書/README.md の影響マップ（解釈は impact_map.py。差し込み口
+     .claude/hooks/impact_map_local.py があればその targets() の結果も足す）に当たれば、
      phase.level("design_docs_reminder", <フェーズ>) で出し分ける
        none → 何も出さない
        info（立ち上げ）→ セッションで 1 回だけ「[設計書候補] … 立ち上げ期は直さなくてよい …」
@@ -27,7 +28,7 @@ import sys
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from impact_map import load_impact_map, match_rows, resolve_targets  # noqa: E402
+from impact_map import load_impact_map, local_targets, match_rows, resolve_targets  # noqa: E402
 from work_area_guard import relative_to_root  # noqa: E402
 
 SKIP_PREFIXES = (".work/", ".claude/", "docs/案件/01_タスク管理/")
@@ -132,6 +133,7 @@ def main() -> int:
         targets: list[str] = []
         for r in rows:
             targets += [t for t in r.targets if t not in targets]
+        targets += [t for t in local_targets(rel, root) if t not in targets]   # 差し込み口（任意）
         candidates = [t for t in resolve_targets(targets, root) if t != rel]
         if not candidates:
             return 0

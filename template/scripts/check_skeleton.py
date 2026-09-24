@@ -56,9 +56,11 @@ REQUIRED_FILES = [
     ".claude/hooks/design_docs_reminder.sh",
     ".claude/hooks/design_docs_reminder.py",
     ".claude/hooks/impact_map.py",
-    ".claude/hooks/tests/run-all.sh",
-    ".claude/hooks/tests/hook-cases-guard.txt",
-    ".claude/hooks/tests/hook-cases-reminder.txt",
+    ".claude/hooks/tests/skeleton/run-all.sh",
+    ".claude/hooks/tests/skeleton/hook-cases-guard.txt",
+    ".claude/hooks/tests/skeleton/hook-cases-reminder.txt",
+    ".claude/hooks/project_config.py",
+    ".claude/project.json",
     ".claude/hooks/phase.py",
     ".claude/hooks/machine_context.py",
     ".claude/skills/harness/SKILL.md",
@@ -127,7 +129,10 @@ CORE_HOOKS = {
     "design_docs_reminder.sh", "design_docs_reminder.py", "impact_map.py",
     "phase.py", "machine_context.py", "drops.py", "pickup_state.py",
     "pickup_cue.sh", "pickup_cue.py", "pickup_check.sh", "pickup_check.py",
+    "project_config.py",
 }
+# 案件が任意で置く差し込み口（台帳ではなく影響マップの表に行を書く。check_design_docs が見る）
+IMPACT_LOCAL = ".claude/hooks/impact_map_local.py"
 HARNESS_LEDGER = "docs/ハーネス台帳.md"
 HARNESS_STATES = ("候補", "定義済", "見送り", "マシン依存")
 AGENT_MODELS = ("inherit", "haiku", "sonnet", "opus", "fable")
@@ -432,6 +437,13 @@ def check_design_docs(root: Path = ROOT, template: bool = False, report=None, se
                 chk(bool(impact_map.resolve_target(t, str(root))),
                     f"影響マップ {row.line_no} 行目: 正本が実ファイルに解決できる: {t}")
 
+    # 差し込み口（任意）: 置いたなら、影響マップの表にそれを指す行がある（表を唯一の入口に保つ）
+    if (root / IMPACT_LOCAL).is_file():
+        section = readme_text.split("## 変えたもの", 1)[1].split("\n## ", 1)[0] if "## 変えたもの" in readme_text else ""
+        table = [l for l in section.splitlines() if l.lstrip().startswith("|")]    # 説明文ではなく表の行
+        chk(any(f"`{IMPACT_LOCAL}`" in l for l in table),
+            f"差し込み口 {IMPACT_LOCAL} を置いたら、docs/設計書/README.md の影響マップの表にそれを指す行を書く")
+
     # 秘密らしき文字列（概要 HTML + 全設計書。check_all は全範囲を check_secrets で別に見る）
     if secrets:
         check_secrets(root, report=report, design_only=True)
@@ -549,10 +561,11 @@ def check_harness(root: Path = ROOT, report=None, template: bool = False) -> Non
     chk = report or check
     root = Path(root)
 
-    # agents の model
+    # agents の model（`_` で始まるファイルは共通の本文でエージェントではないので除く）
     agents = root / ".claude/agents"
-    if agents.is_dir():
-        for p in sorted(agents.rglob("*.md")):
+    agent_files = [p for p in sorted(agents.rglob("*.md")) if not p.name.startswith("_")] if agents.is_dir() else []
+    if agent_files:
+        for p in agent_files:
             fm = parse_frontmatter(p) or {}
             model = fm.get("model", "")
             chk(model in AGENT_MODELS or model.startswith("claude-"),
@@ -604,18 +617,34 @@ def check_harness(root: Path = ROOT, report=None, template: bool = False) -> Non
     if rules.is_dir():
         unlisted += [f"rule {p.name}" for p in sorted(rules.glob("*.md"))
                      if p.name not in CORE_RULES and not listed(f".claude/rules/{p.stem}")]
-    if agents.is_dir():
-        unlisted += [f"agent {p.name}" for p in sorted(agents.rglob("*.md"))
+    if agent_files:
+        unlisted += [f"agent {p.name}" for p in agent_files
                      if not listed(p.relative_to(root).with_suffix("").as_posix())]
     hooks = root / ".claude/hooks"
     if hooks.is_dir():
         stems = sorted({p.stem for p in hooks.iterdir()
-                        if p.is_file() and p.suffix in (".sh", ".py") and p.name not in CORE_HOOKS})
+                        if p.is_file() and p.suffix in (".sh", ".py") and p.name not in CORE_HOOKS
+                        and p.name != Path(IMPACT_LOCAL).name})
         unlisted += [f"hook {s}" for s in stems if not listed(f".claude/hooks/{s}")]
     by_phase("harness_unlisted", not unlisted,
              f"台帳に無いハーネス {len(unlisted)} 件（{', '.join(unlisted[:5])}）。"
              f"{HARNESS_LEDGER} に定義済で 1 行ずつ書く（harness スキル）" if unlisted
              else "台帳に無いハーネスなし")
+
+
+def check_project_config(root: Path = ROOT, report=None) -> None:
+    """`.claude/project.json`（無ければ既定値で対象ゼロ）の形。hook は壊れていても止めないので、ここで拾う。"""
+    chk = report or check
+    try:
+        import project_config
+    except ImportError:
+        chk(False, "project.json: .claude/hooks/project_config.py を import できない")
+        return
+    probs = project_config.problems(str(root))
+    for p in probs:
+        chk(False, p)
+    if not probs:
+        chk(True, f"{project_config.CONFIG} の形")
 
 
 def check_all() -> None:
@@ -702,6 +731,9 @@ def check_all() -> None:
 
     # ハーネスの形
     check_harness()
+
+    # 案件ごとの設定 .claude/project.json の形
+    check_project_config()
 
     # 落ち先の検査が動く（中身では fail にしない。一覧は python3 scripts/check_drops.py）
     check_drops_quiet()

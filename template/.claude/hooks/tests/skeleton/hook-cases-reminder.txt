@@ -1,10 +1,10 @@
-# design_docs_reminder.py の判定ケース。影響マップは docs/設計書/README.md の実物を使う。
+# design_docs_reminder.py の判定ケース。影響マップは reminder-fixture/docs/設計書/README.md（固定の模擬）を使う。
 # 書式: <期待 none|remind><TAB><file_path><TAB><stdout に含まれるべき文字列><TAB><session_id><TAB><CLAUDE_PROJECT_DIR の上書き><TAB><フェーズ>
 # 3 列目が `!` で始まるときは「含まれてはいけない文字列」。
 # 6 列目のフェーズは環境変数 CLAUDE_SKELETON_PHASE で渡す。省略・`-` は 開発（v1.1.0 からのケースは開発期の挙動）。
 # 3〜6 列目は省略可。途中の列を飛ばすときは `-` を置く（空欄のタブ連続は bash の read が 1 つに畳むので列がずれる）。
 # session_id を省略した行は毎回リマインドが出る。
-# 5 列目の {WIN} は run-all.sh が template ルートの Windows 形式（C:\…）に置き換える。
+# 5 列目を省略した行は reminder-fixture/ を CLAUDE_PROJECT_DIR にする。{WIN} は run-all.sh がその Windows 形式（C:\…）に置き換える。
 # 行頭 # と空行は無視。
 
 # --- 影響マップに当たる ---

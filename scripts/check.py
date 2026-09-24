@@ -63,12 +63,16 @@ TEMPLATE_REQUIRED = [
     ".claude/hooks/pickup_cue.py",
     ".claude/hooks/pickup_check.sh",
     ".claude/hooks/pickup_check.py",
-    ".claude/hooks/tests/hook-cases-pickup.txt",
-    ".claude/hooks/tests/run_pickup_cases.py",
-    ".claude/hooks/tests/run_drops_cases.py",
-    ".claude/hooks/tests/hook-cases-guard.txt",
-    ".claude/hooks/tests/hook-cases-reminder.txt",
-    ".claude/hooks/tests/run-all.sh",
+    ".claude/hooks/tests/skeleton/hook-cases-pickup.txt",
+    ".claude/hooks/tests/skeleton/run_pickup_cases.py",
+    ".claude/hooks/tests/skeleton/run_drops_cases.py",
+    ".claude/hooks/tests/skeleton/hook-cases-guard.txt",
+    ".claude/hooks/tests/skeleton/hook-cases-reminder.txt",
+    ".claude/hooks/tests/skeleton/run-all.sh",
+    ".claude/hooks/tests/skeleton/reminder-fixture/docs/設計書/README.md",
+    ".claude/hooks/project_config.py",
+    ".claude/project.json",
+    "scripts/tests/test_project_config.py",
     ".work/README.md",
     ".work/証跡/.gitkeep", ".work/機密/.gitkeep", ".work/一時/.gitkeep", ".work/_bk/.gitkeep",
     "scripts/check_skeleton.py",
@@ -309,10 +313,10 @@ def main() -> int:
         check(bool(re.search(r'charset="utf-8"', html, re.I)), '概要 HTML に charset="UTF-8" がある')
 
     # 11. hooks のテスト
-    run_all = TEMPLATE / ".claude/hooks/tests/run-all.sh"
+    run_all = TEMPLATE / ".claude/hooks/tests/skeleton/run-all.sh"
     bash = shutil.which("bash")
     if not run_all.is_file():
-        ng("template/.claude/hooks/tests/run-all.sh が無い")
+        ng("template/.claude/hooks/tests/skeleton/run-all.sh が無い")
     elif bash is None:
         print("skip hooks テスト(bash が無い)")
     else:
@@ -343,7 +347,7 @@ def main() -> int:
     # 12c. template の agents 定義には model を必ず書く(継承させるなら model: inherit)
     agents_dir = TEMPLATE / ".claude/agents"
     if agents_dir.is_dir():
-        for a in sorted(agents_dir.glob("*.md")):
+        for a in sorted(p for p in agents_dir.glob("*.md") if not p.name.startswith("_")):   # `_` 始まりは共通の本文
             afm = parse_frontmatter(a) or {}
             check(bool(afm.get("model")), f"agents {a.name}: model がある")
 

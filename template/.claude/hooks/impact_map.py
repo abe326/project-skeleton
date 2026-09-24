@@ -7,8 +7,11 @@ scripts/ 側からは `sys.path.insert(0, ROOT / ".claude/hooks")` で import �
 表の読み方:
   - 「## 変えたもの」で始まる見出しの直後にある表だけを読む
   - 1 列目のバッククォート内 = glob（複数は `・` 区切り）。バッククォートが無い行は人向けの注記として無視
-  - 2 列目のバッククォート内 = 一緒に直す文書（`docs/設計書/` 相対、またはルート相対の実ファイル。
-    ` §n` 等の末尾注記は捨てる。複数は `→` や `・` で並ぶ）
+  - 2 列目のバッククォート内 = 一緒に直す文書（`docs/設計書/` 相対、ルート相対、または .claude/project.json の
+    nested_repos に書いた入れ子リポの中の相対パス。` §n` 等の末尾注記は捨てる。複数は `→` や `・` で並ぶ）
+
+表で書きにくい判定（先勝ち・除外・フォールバック）は、任意の差し込み口 `.claude/hooks/impact_map_local.py` の
+`targets(rel_path) -> list[str]` に書ける（local_targets()）。置いたら表にそれを指す行を 1 行書く（check_skeleton.py が見る）。
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ import re
 from dataclasses import dataclass
 
 DESIGN_DIR = "docs/設計書"
+LOCAL_MODULE = "impact_map_local"
 _BACKTICK = re.compile(r"`([^`]+)`")
 
 
@@ -92,7 +96,7 @@ def match_rows(rel_path: str, rows: list[Row]) -> list[Row]:
 def resolve_target(target: str, root: str) -> list[str]:
     """target を実ファイル（ルート相対 posix）へ展開する。見つからなければ空。"""
     found: list[str] = []
-    for base in (os.path.join(root, DESIGN_DIR), root):
+    for base in (os.path.join(root, DESIGN_DIR), root, *_nested_bases(root)):
         # base 側は glob.escape する（ルートのパスに [ ] 等が含まれると文字クラスと解釈されて何も見つからない）
         for hit in globmod.glob(os.path.join(globmod.escape(base), target), recursive=True):
             if os.path.isfile(hit):
@@ -100,6 +104,30 @@ def resolve_target(target: str, root: str) -> list[str]:
         if found:
             break
     return sorted(set(found))
+
+
+def _nested_bases(root: str) -> list[str]:
+    try:
+        import project_config  # noqa: WPS433
+        return [os.path.join(root, r) for r in project_config.load(root)["nested_repos"]]
+    except Exception:
+        return []
+
+
+def local_targets(rel_path: str, root: str) -> list[str]:
+    """差し込み口 .claude/hooks/impact_map_local.py の targets(rel_path)。無い・壊れているときは空。"""
+    hooks_dir = os.path.join(root, ".claude", "hooks")
+    if not os.path.isfile(os.path.join(hooks_dir, LOCAL_MODULE + ".py")):
+        return []
+    try:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(LOCAL_MODULE, os.path.join(hooks_dir, LOCAL_MODULE + ".py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        got = mod.targets(rel_path)
+        return [t for t in got if isinstance(t, str) and t] if isinstance(got, (list, tuple)) else []
+    except Exception:
+        return []
 
 
 def resolve_targets(targets: list[str], root: str) -> list[str]:

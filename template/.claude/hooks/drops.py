@@ -184,13 +184,18 @@ def is_meeting_path(rel: str) -> bool:
 
 
 def parse_meeting(path: str) -> list[Row]:
-    """`## 決定`（旧 `## 決定事項`）・`## 未決` の箇条と `## 宿題` の表から行を返す。読めなければ空。"""
+    """`## 決定`（旧 `## 決定事項`）・`## 未決` の箇条と `## 宿題` の表から行を返す。読めなければ空。
+
+    `## 要約` > `### 決定事項` のような H3 の区切りも読む（tl;dv 等で作る記録）。H2 で始まった区切りの下の
+    関係の無い H3 は区切りを保ち、H3 で始まった区切りは次の関係の無い H3 か H2 で終わる。
+    """
     text = read_text(path)
     if text is None:
         return []
     lines = strip_comments(text).splitlines()
     rows: list[Row] = []
     section = None
+    section_level = 0
     in_code = False
     header: list[str] | None = None
     for i, line in enumerate(lines, 1):
@@ -200,10 +205,13 @@ def parse_meeting(path: str) -> list[Row]:
             continue
         if in_code:
             continue
-        m = re.match(r"^##\s+(.+?)\s*$", s)
-        if m and not s.startswith("###"):
-            section = MEETING_SECTIONS.get(re.sub(r"[（(].*$", "", m.group(1)).strip())
-            header = None
+        m = re.match(r"^(#{2,3})\s+(.+?)\s*$", s)
+        if m:
+            level = len(m.group(1))
+            name = MEETING_SECTIONS.get(re.sub(r"[（(].*$", "", m.group(2)).strip())
+            if level == 2 or name or section_level == 3:
+                section, section_level = name, (level if name else 0)
+                header = None
             continue
         if s.startswith("#"):
             continue

@@ -27,7 +27,7 @@
       "Bash(npm run test *)",
       "Bash(go test *)",
       "Bash(cargo test *)",
-      "Bash(bash .claude/hooks/tests/run-all.sh)"
+      "Bash(bash .claude/hooks/tests/skeleton/run-all.sh)"
     ],
     "deny": [
       "Bash(git push --force *)",

@@ -65,7 +65,7 @@ description: この案件のハーネス（skill・hook・rules・permissions・
 | 定義先 | 手順の要点 | 検査（`check_skeleton.py --harness`） |
 |---|---|---|
 | `permissions.allow` / `deny` | パターンは最小。`pip install`・`npm install` などの導入系は allow しない（入れるかどうかは毎回人が決める）。deny は 05 §9 に行を足し、状態を「決定」、deny 列にパターンをバッククォートで書く | 05 §9 の決定行の deny 列のパターンが `settings.json` の deny にある |
-| hook | `.claude/hooks/<名前>.sh` と `.py` の組（既存と同じ「python を探す sh + py」型）。`settings.json` に登録。テストケースを `.claude/hooks/tests/` に 1 行以上 | 参照スクリプトの実在 |
+| hook | `.claude/hooks/<名前>.sh` と `.py` の組（既存と同じ「python を探す sh + py」型）。`settings.json` に登録。テストケースを `.claude/hooks/tests/skeleton/` に 1 行以上 | 参照スクリプトの実在 |
 | skill | `.claude/skills/<名前>/SKILL.md`。frontmatter は `name`・`description`。**`allowed-tools` は付けない**（未信頼のワークスペースで起動を拒否される） | frontmatter の name・description |
 | rule | `.claude/rules/<名前>.md`。1 ルール 1 ファイル、20 行以内 | — |
 | agents | `.claude/agents/<名前>.md`。**frontmatter に `model` を必ず書く**（`inherit` / `haiku` / `sonnet` / `opus` / `fable` か `claude-` で始まる ID）。継承させたいなら `model: inherit` と書く | `model` が無い・空・上の値以外 → NG |

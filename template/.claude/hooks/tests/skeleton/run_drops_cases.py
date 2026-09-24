@@ -22,7 +22,7 @@ import tempfile
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+ROOT = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
 BASE = os.path.join(HERE, "drops-cases", "project")
 TODAY = "2026-09-23"
 
@@ -39,6 +39,12 @@ HW = "| 誰が | 何を | 期限 | 落ち先 |\n|:--|:--|:--|:--|\n"
 def meeting(decisions: str = "", undecided: str = "", homework: str = "") -> str:
     return (f"# 2026-09-23 模擬\n\n- 出席: 当方・発注側\n\n## 決定\n{decisions}\n\n## 未決\n{undecided}\n\n"
             f"## 宿題\n{HW}{homework}\n\n## 議論の要点\n- 落ち先の要らない話\n")
+
+
+def meeting_h3(decisions: str = "", homework: str = "") -> str:
+    """tl;dv 型: `## 要約` の下に `### 決定事項` `### 宿題`。関係の無い H3 の箇条は拾わない。"""
+    return (f"# 2026-09-23 模擬（H3）\n\n## 要約\n\n### 概要\n- 落ち先の要らない話\n\n### 決定事項\n{decisions}\n\n"
+            f"### 宿題\n{HW}{homework}\n\n### 次回\n- 次回も同じ時間\n\n## 文字起こし\n- 話した内容\n")
 
 
 def issue(iid: str, decision: str, state_closed: bool = False, due: str = "") -> str:
@@ -66,6 +72,12 @@ CASES: list[dict] = [
          cmd=CD + ["--strict"], exit=0, out=["情報 docs/案件/02_打合せ/20260923_a.md:", "落ち先なし", "警告 0 件・情報 1 件"]),
     dict(id="2q", note="--quiet の 3 つ目は落ち先なし数", files={f"{MTG}/20260923_a.md": meeting("- 対象は本社のみ")},
          cmd=CD + ["--quiet"], quiet="0 1 1 1 0"),
+    dict(id="2h", note="H3 の ### 決定事項 も読む（落ち先なし 1 行。概要・次回・文字起こしの箇条は数えない）",
+         files={f"{MTG}/20260923_h.md": meeting_h3("- 対象は本社のみ")},
+         cmd=CD + ["--quiet"], quiet="0 1 1 1 0"),
+    dict(id="2h2", note="H3 の決定・宿題に落ち先あり → 何も出さない",
+         files={f"{MTG}/20260923_h.md": meeting_h3("- 対象は本社のみ → 反映済: 01 §3", "| 当方 | 見積もり | 9/30 | → APP-01 |\n")},
+         cmd=CD + ["--strict"], exit=0, out=["警告 0 件・情報 0 件"]),
     dict(id="3", note="同（開発）→ 警告・--strict で exit 1", phase="開発",
          files={f"{MTG}/20260923_a.md": meeting("- 対象は本社のみ")}, cmd=CD + ["--strict"], exit=1, out=["警告 1 件・情報 0 件"]),
     dict(id="4", note="→ APP-1 は立ち上げでも警告", files={f"{MTG}/20260923_a.md": meeting("- ログインを作る → APP-1")},

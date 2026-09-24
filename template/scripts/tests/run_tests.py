@@ -3,7 +3,7 @@
 
 使い方: python3 scripts/tests/run_tests.py [-v]
 出力: unittest の結果 + 最後に `pass=N fail=M`。fail>0 なら exit 1。標準ライブラリのみ。
-スケルトン側の scripts/check.py と .claude/hooks/tests/run-all.sh からも呼ばれる。
+スケルトン側の scripts/check.py と .claude/hooks/tests/skeleton/run-all.sh からも呼ばれる。
 """
 from __future__ import annotations
 

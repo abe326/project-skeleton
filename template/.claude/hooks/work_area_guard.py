@@ -11,6 +11,8 @@ stdin の JSON から tool_input.file_path を読み、$CLAUDE_PROJECT_DIR（無
   3. .work/一時/ 直下のファイル（サブフォルダ必須）
   4. .work/一時/<サブ>/ のサブフォルダ名が YYYYMMDD_ で始まらない
 
+.claude/project.json の work_area_allow（ルート相対の glob）に当たるパスは、上の条件より先に通す（案件の仕組みの
+固定パス。テンプレの許可リストは書き換えない）。設定が読めないときは許可リストなしで判定する。
 ルート外・ディレクトリ配下（src/ docs/ 等）は通す。Windows パス（C:\\…、/c/…、/mnt/c/…）も正規化して扱う。
 ルールの正本: .claude/rules/work-area.md
 """
@@ -84,8 +86,30 @@ GUIDE = ("scratch skill（.work/一時/YYYYMMDD_用途/）か work-placement ski
          "（.claude/rules/work-area.md）")
 
 
-def judge(rel: str):
-    """違反ならメッセージ、通すなら None。"""
+def load_allow(root: str) -> list[str]:
+    """.claude/project.json の work_area_allow。読めない・import できないときは空（テンプレの判定だけにする）。"""
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import project_config  # noqa: WPS433
+        return project_config.load(root)["work_area_allow"]
+    except Exception:
+        return []
+
+
+def allowed_by_project(rel: str, allow) -> bool:
+    if not allow:
+        return False
+    try:
+        from impact_map import glob_matches  # noqa: WPS433
+    except Exception:
+        return False
+    return any(rel == g or glob_matches(rel, g) for g in allow)
+
+
+def judge(rel: str, allow=None):
+    """違反ならメッセージ、通すなら None。allow は project.json の work_area_allow。"""
+    if allowed_by_project(rel, allow):
+        return None
     parts = rel.split("/")
     if len(parts) == 1:
         if root_allowed(parts[0]):
@@ -120,6 +144,8 @@ def main() -> int:
     if rel is None:
         return 0
     msg = judge(rel)
+    if msg is not None:
+        msg = judge(rel, load_allow(root))
     if msg is None:
         return 0
     try:

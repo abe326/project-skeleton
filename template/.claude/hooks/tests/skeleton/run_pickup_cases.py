@@ -20,7 +20,7 @@ import time
 
 sys.dont_write_bytecode = True
 HERE = os.path.dirname(os.path.abspath(__file__))
-HOOKS = os.path.dirname(HERE)
+HOOKS = os.path.dirname(os.path.dirname(HERE))
 CASES = os.path.join(HERE, "hook-cases-pickup.txt")
 
 MEETING = "docs/案件/02_打合せ"

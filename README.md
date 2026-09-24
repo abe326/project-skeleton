@@ -64,9 +64,10 @@ python3 scripts/init.py <生成先パス or プロジェクト名> --name <表�
 ```
 
 - 第 1 引数にパス区切りが無ければ、このリポの**親ディレクトリ**直下に作る
-- `--merge`: 既存フォルダに無いファイルだけ追加。既存は触らず、template と内容が異なるものは differs として一覧
+- `--merge`: 既存フォルダに無いファイルだけ追加。既存は触らず、template と内容が異なるものは differs として一覧。build.py は実行せず、実行ビットは今回作ったファイルにだけ付ける
 - `--dry-run`: 書き込み・git・build を一切せず、作成予定だけ出す
-- 生成後に `build.py` → `git init` + 初回コミット → `scripts/check_skeleton.py` を続けて実行する
+- 生成後に `build.py`(新規のときだけ) → `git init` + 初回コミット → `scripts/check_skeleton.py` を続けて実行する
+- 既存案件の形の違い(仕組みの固定の置き場・入れ子の別リポ)は、生成先の `.claude/project.json` に書く。テンプレのコードは書き換えない。表で書きにくい設計書追随の判定は差し込み口 `.claude/hooks/impact_map_local.py`(`sync-design-docs` スキル)
 
 ### 検査
 

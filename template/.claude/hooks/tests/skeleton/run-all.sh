@@ -4,7 +4,8 @@
 #      work_area_guard.sh へ流し、期待どおり allow / block になるかを見る
 #   2) design_docs_reminder: hook-cases-reminder.txt の各行（<期待>\t<file_path>\t<含む文字列>\t<session_id>\t<root>\t<フェーズ>）を
 #      PostToolUse の JSON にして design_docs_reminder.sh へ流し、additionalContext の有無と内容を見る
-#      （影響マップは template の docs/設計書/README.md の実物を使う。フェーズは CLAUDE_SKELETON_PHASE で渡し、省略時は 開発）
+#      （影響マップは reminder-fixture/ の固定の表を使う。テンプレや案件の設計書 README に左右されない。
+#       フェーズは CLAUDE_SKELETON_PHASE で渡し、省略時は 開発）
 #      3〜6 列目の空欄は `-` で書く。bash の `IFS=$'\t' read` は連続するタブを 1 つに畳むので、空のタブ区切りは列ずれを起こす。
 #      末尾の列は省略してよい（guard 側は省略可能な列が最後の 1 つだけなので、この問題は起きない）
 #   3) pickup: run_pickup_cases.py（hook-cases-pickup.txt。UserPromptSubmit → PostToolUse → Stop の手順つきケース）
@@ -15,7 +16,7 @@
 # hook の状態ファイルは mktemp -d の一時ディレクトリに書く（消さない。OS の一時領域の掃除に任せる）
 set -u
 here="$(cd "$(dirname "$0")" && pwd)"
-root_default="$(cd "$here/../../.." && pwd)"
+root_default="$(cd "$here/../../../.." && pwd)"
 export CLAUDE_DOCS_REMINDER_STATE_DIR="$(mktemp -d)"
 export PYTHONDONTWRITEBYTECODE=1
 unset CLAUDE_PICKUP CLAUDE_PICKUP_MAX_BLOCKS
@@ -29,7 +30,7 @@ fi
 pass=0; fail=0
 
 # --- 1) work_area_guard ------------------------------------------------------
-hook="$here/../work_area_guard.sh"
+hook="$here/../../work_area_guard.sh"
 cases="$here/hook-cases-guard.txt"
 while IFS=$'\t' read -r expect path root; do
   case "$expect" in ''|'#'*) continue ;; esac
@@ -47,12 +48,13 @@ while IFS=$'\t' read -r expect path root; do
 done < "$cases"
 
 # --- 2) design_docs_reminder ---------------------------------------------------
-hook="$here/../design_docs_reminder.sh"
+hook="$here/../../design_docs_reminder.sh"
 cases="$here/hook-cases-reminder.txt"
-# {WIN} = template ルートの Windows 形式（/mnt/c/x → C:\x、/c/x → C:\x）。変換できなければそのまま。
-# ルート列の {WIN} は、Windows 上ではその形を、それ以外では実際に開ける root_default を使う（file_path 側だけ Windows 形式で流す）
-win_root=$("$PY" -c 'import re,sys; p=sys.argv[1]; m=re.match(r"^/(?:mnt/)?([a-zA-Z])/(.*)$", p); print(m.group(1).upper()+":\\"+m.group(2).replace("/","\\") if m else p)' "$root_default")
-case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) win_root_for_env="$win_root" ;; *) win_root_for_env="$root_default" ;; esac
+fixture="$here/reminder-fixture"
+# {WIN} = フィクスチャの Windows 形式（/mnt/c/x → C:\x、/c/x → C:\x）。変換できなければそのまま。
+# ルート列の {WIN} は、Windows 上ではその形を、それ以外では実際に開ける fixture を使う（file_path 側だけ Windows 形式で流す）
+win_root=$("$PY" -c 'import re,sys; p=sys.argv[1]; m=re.match(r"^/(?:mnt/)?([a-zA-Z])/(.*)$", p); print(m.group(1).upper()+":\\"+m.group(2).replace("/","\\") if m else p)' "$fixture")
+case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) win_root_for_env="$win_root" ;; *) win_root_for_env="$fixture" ;; esac
 
 run_reminder() {  # $1=tool_name $2=file_path $3=session_id $4=root $5=phase → stdout
   local json
@@ -70,7 +72,7 @@ while IFS=$'\t' read -r expect path want sid root phase; do
   [ "${phase:-}" != "-" ] || phase=""
   path="${path//\{WIN\}/$win_root}"
   root="${root:-}"; root="${root//\{WIN\}/$win_root_for_env}"
-  [ -n "$root" ] || root="$root_default"
+  [ -n "$root" ] || root="$fixture"
   out=$(run_reminder Write "$path" "${sid:-}" "$root" "${phase:-開発}")
   case "$out" in *additionalContext*) got=remind ;; *) got=none ;; esac
   ok=1
@@ -90,7 +92,7 @@ while IFS=$'\t' read -r expect path want sid root phase; do
 done < "$cases"
 
 # tool_name が Read なら何も出さない
-out=$(run_reminder Read "src/auth/login.py" "" "$root_default" 開発)
+out=$(run_reminder Read "src/auth/login.py" "" "$fixture" 開発)
 if [ -z "$out" ]; then pass=$((pass+1)); else fail=$((fail+1)); printf 'NG reminder tool_name=Read で出力があった:\n    %s\n' "$out"; fi
 
 # --- 3〜5) python のランナー（最後の行の pass=N fail=M を足し込む）------------------

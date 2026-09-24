@@ -1,0 +1,5 @@
+{
+  "_説明": "案件ごとの設定。テンプレのコードは書き換えずにここへ書く。work_area_allow: 置き場ガードが通すルート相対の glob（仕組みの固定パス）。nested_repos: 中に別の git リポがあるフォルダ（影響マップと鮮度メタで使う）。読むのは .claude/hooks/project_config.py",
+  "work_area_allow": [],
+  "nested_repos": []
+}

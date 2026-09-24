@@ -10,6 +10,7 @@ description: docs/設計書/ を実装・決定に追随させる手順。ソー
 問いは「矛盾しないか」ではなく「**この変更で何が決まったか**」。雛形のままの設計書は、矛盾しないのではなく、まだ何も書かれていないだけ。
 
 「何を変えたら、どの設計書を見るか」の正本は `docs/設計書/README.md` の「## 変えたもの → 一緒に直す正本」表（影響マップ）。hook（`design_docs_reminder.py`・`pickup_check.py`）と検査（`scripts/docs_freshness.py`・`check_skeleton.py --docs`）も同じ表を読む。
+表で書きにくい判定（先勝ち・除外・フォールバック）は、任意の差し込み口 `.claude/hooks/impact_map_local.py` の `targets(rel_path) -> list[str]` に書ける（hook が表の結果に足す）。置いたら表にそれを指す行を 1 行書く（`check_skeleton.py` が見る）。定義はユーザーの承認後（`harness` スキル）
 
 ## 発火条件
 
