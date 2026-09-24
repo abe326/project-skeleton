@@ -18,6 +18,7 @@ project-skeleton/
 ├── scripts/
 │   ├── init.py               template → 案件フォルダを生成(--merge で既存へ適用)
 │   ├── check.py              スケルトン自身の検査(template の単体テスト・hook テストも回す)
+│   ├── collect_returns.py    案件で直したもののうち、スケルトンへ返す候補を集める(台帳の「返す」列・仕組みの差分)
 │   ├── tests/                init.py の単体テスト
 │   ├── install-global.sh     ~/.claude/skills/new-project にリンク(Linux / macOS)
 │   └── install-global.ps1    同上(Windows、ジャンクション)
@@ -29,20 +30,23 @@ project-skeleton/
     │   │                                  sync-design-docs / audit-design-docs / pickup / harness(9 本)
     │   └── hooks/                         session_context(SessionStart)/ work_area_guard(PreToolUse)/
     │                                      design_docs_reminder(PostToolUse)/ pickup_cue(UserPromptSubmit)/
-    │                                      pickup_check(Stop)+ phase.py・drops.py・pickup_state.py・
-    │                                      impact_map.py・machine_context.py + tests/
+    │                                      pickup_check・work_log(Stop)+ phase.py・drops.py・pickup_state.py・
+    │                                      impact_map.py・machine_context.py・project_config.py + tests/skeleton/
     ├── .work/                             作業領域(証跡・機密・一時・_bk)
     ├── scripts/check_skeleton.py          生成先の検査(--overview / --docs)
     ├── scripts/docs_freshness.py          設計書の鮮度(要確認と未記入)
     ├── scripts/check_drops.py             落ち先の検査(打合せ記録・課題・確認依頼の落ち先なし・ID 不在)
+    ├── scripts/add_doc.py                 設計書を 1 本ずつ足す(template/ から。索引・影響マップの行も入れる)
+    ├── scripts/work_log.py                作業ログを正本から生成(直近 14 日・月ごと・索引)
     ├── scripts/tests/                     単体テスト(run_tests.py)
     └── docs/
         ├── プロジェクト概要.html          マーカー付きの 1 枚概要
         ├── 案件/01_タスク管理/            new.py / close.py / screen.py / build.py / areas.json / index.html /
         │                                  README.md(要約)・詳細仕様.md
         ├── 案件/02_打合せ/ ・ 案件/確認依頼一覧.md
+        ├── 案件/作業ログ/                 出来事の時系列(生成物)
         ├── ハーネス台帳.md                ハーネスの候補・定義済(候補は Claude、定義は承認後)
-        └── 設計書/                         01-overview 〜 09-非機能と縮退 / decisions(ADR)/ runbook/
+        └── 設計書/                         01-概要 だけで始め、template/(02 構成 〜 09 非機能と障害時)から足す / decisions(ADR)/ runbook/
                                             README.md の影響マップ(変えたもの → 一緒に直す正本)を hook・検査が読む
 ```
 
@@ -80,7 +84,7 @@ python3 <生成先>/scripts/check_skeleton.py     # 生成先(同じ形式。--o
 
 - `CLAUDE.md` 先頭に `<!-- project-skeleton vX.Y.Z generated YYYY-MM-DD -->`。どの版から作ったかが分かる
 - `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task / sync-design-docs / audit-design-docs / pickup / harness)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード・設計書追随・依頼文の手がかり・区切りの拾い)
-- フェーズ(立ち上げ / 開発 / 運用)で厳しさが変わる。表は `python3 .claude/hooks/phase.py --table`、切り替えは `--set`。立ち上げ期は拾うだけ
+- フェーズ(Sketch / Build)で厳しさが変わる。表は `python3 .claude/hooks/phase.py --table`、切り替えは `--set`(AI が判断して切り替え、確認は挟まない)。Sketch の間は拾うだけ
 - 作業中に出た決定・未決・あとでやることは「反映済・タスク・未決」のどれかに落とす(打合せ記録の各行に落ち先、未決の正本は課題 md)。ハーネスは `docs/ハーネス台帳.md` に候補として書き、承認後に定義する
 - skill に `allowed-tools` を書かない(未信頼のワークスペースで起動が拒否されるため。`check.py` が見る)
 - `.work/` は git 管理外の作業領域。証跡・機密・一時・_bk の 4 枠
@@ -103,7 +107,8 @@ python3 <生成先>/scripts/check_skeleton.py     # 生成先(同じ形式。--o
 2. `python3 scripts/check.py` で fail=0 を確認
 3. `VERSION` を上げ、`CHANGELOG.md` の先頭に版・日付・変更・**既存プロジェクトへの適用**を書く
 4. 既存プロジェクトへは `python3 scripts/init.py <既存パス> --name "<表示名>" --merge` で追加分を配り、differs は手で取り込む
-5. リンク配備なら各マシンは自動で新版を見る。`--copy` で配備したマシンは `install-global --copy --force` で更新
+5. 案件で直したものを取り込むときは `python3 scripts/collect_returns.py <案件パス…>` で候補を集め、template/ に入れて CHANGELOG に還元元を書く
+6. リンク配備なら各マシンは自動で新版を見る。`--copy` で配備したマシンは `install-global --copy --force` で更新
 
 ## 制約
 

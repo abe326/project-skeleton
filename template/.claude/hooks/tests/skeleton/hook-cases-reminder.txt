@@ -1,7 +1,7 @@
 # design_docs_reminder.py の判定ケース。影響マップは reminder-fixture/docs/設計書/README.md（固定の模擬）を使う。
 # 書式: <期待 none|remind><TAB><file_path><TAB><stdout に含まれるべき文字列><TAB><session_id><TAB><CLAUDE_PROJECT_DIR の上書き><TAB><フェーズ>
 # 3 列目が `!` で始まるときは「含まれてはいけない文字列」。
-# 6 列目のフェーズは環境変数 CLAUDE_SKELETON_PHASE で渡す。省略・`-` は 開発（v1.1.0 からのケースは開発期の挙動）。
+# 6 列目のフェーズは環境変数 CLAUDE_SKELETON_PHASE で渡す。省略・`-` は Build（v1.1.0 からのケースは Build の挙動）。
 # 3〜6 列目は省略可。途中の列を飛ばすときは `-` を置く（空欄のタブ連続は bash の read が 1 つに畳むので列がずれる）。
 # session_id を省略した行は毎回リマインドが出る。
 # 5 列目を省略した行は reminder-fixture/ を CLAUDE_PROJECT_DIR にする。{WIN} は run-all.sh がその Windows 形式（C:\…）に置き換える。
@@ -41,17 +41,17 @@ remind	docs/案件/02_打合せ/20260923_キックオフ.md	[落ち先]	sess-mtg
 none	docs/案件/02_打合せ/20260923_キックオフ.md	-	sess-mtg-1
 remind	docs/案件/02_打合せ/20260930_定例.md	[落ち先]	sess-mtg-1
 remind	docs/案件/02_打合せ/20260923_キックオフ.md	!設計書追随	sess-mtg-2
-remind	docs/案件/02_打合せ/20260923_キックオフ.md	[落ち先]	sess-mtg-3	-	立ち上げ
+remind	docs/案件/02_打合せ/20260923_キックオフ.md	[落ち先]	sess-mtg-3	-	Sketch
 # 打合せフォルダの README は記録ではないので、影響マップの通常の追随（[落ち先] ではない）
 remind	docs/案件/02_打合せ/README.md	!落ち先	sess-mtg-4
 
-# --- フェーズ別（design_docs_reminder のレベル: 立ち上げ=情報 / 開発・運用=警告）---
-remind	src/auth/login.py	[設計書候補]	sess-ph-1	-	立ち上げ
-none	tests/test_login.py	-	sess-ph-1	-	立ち上げ
-remind	src/auth/login.py	直さなくてよい	-	-	立ち上げ
+# --- フェーズ別（design_docs_reminder のレベル: Sketch=情報 / Build=警告）---
+remind	src/auth/login.py	[設計書候補]	sess-ph-1	-	Sketch
+none	tests/test_login.py	-	sess-ph-1	-	Sketch
+remind	src/auth/login.py	直さなくてよい	-	-	Sketch
+# 旧い値「開発」「運用」はどちらも Build に読み替わるので、同一セッションで混ぜても二重に出ない
 remind	src/auth/login.py	決まったことを 1 行	sess-ph-2	-	開発
-remind	src/auth/login.py	[設計書追随]	sess-ph-2	-	運用
 none	src/auth/login.py	-	sess-ph-2	-	運用
-remind	src/auth/login.py	[設計書候補]	sess-ph-3	-	立ち上げ
-remind	src/auth/login.py	[設計書追随]	sess-ph-3	-	開発
-none	src/auth/login.py	-	sess-ph-3	-	開発
+remind	src/auth/login.py	[設計書候補]	sess-ph-3	-	Sketch
+remind	src/auth/login.py	[設計書追随]	sess-ph-3	-	Build
+none	src/auth/login.py	-	sess-ph-3	-	Build

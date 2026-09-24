@@ -81,7 +81,7 @@ class GeneratedProjectTest(unittest.TestCase):
         self.assertIn("--owner なし", out)
 
     def test_desc_placeholder(self):
-        for rel in ("CLAUDE.md", "README.md", "docs/プロジェクト概要.html", "docs/設計書/01-overview.md"):
+        for rel in ("CLAUDE.md", "README.md", "docs/プロジェクト概要.html", "docs/設計書/01-概要.md"):
             text = (self.dest / rel).read_text(encoding="utf-8")
             self.assertIn(INIT.DESC_UNSET, text, rel)
 
@@ -138,7 +138,7 @@ class MergeClassifyTest(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
             with (dest / ".claude/hooks/phase.py").open("a", encoding="utf-8") as f:
                 f.write("\n# 案件側の変更\n")
-            with (dest / "docs/設計書/01-overview.md").open("a", encoding="utf-8") as f:
+            with (dest / "docs/設計書/01-概要.md").open("a", encoding="utf-8") as f:
                 f.write("\n案件側の追記\n")
             r = run_init(str(dest), "--name", "検証", "--slug", "tinit4", "--merge", "--dry-run", "--no-git")
             out = r.stdout
@@ -147,7 +147,7 @@ class MergeClassifyTest(unittest.TestCase):
             content_head = out.index("内容（案件側で書き換え済みのはず")
             self.assertLess(mech_head, out.index(".claude/hooks/phase.py"))
             self.assertLess(mech_head, content_head)
-            self.assertLess(content_head, out.index("docs/設計書/01-overview.md"))
+            self.assertLess(content_head, out.index("docs/設計書/01-概要.md"))
 
     def test_merge_next_steps(self):
         with tempfile.TemporaryDirectory(prefix="skel-init-test-") as tmp:
@@ -182,6 +182,31 @@ class MergeClassifyTest(unittest.TestCase):
                 self.assertTrue((dest / ".claude/hooks/phase.py").stat().st_mode & 0o100)
 
 
+class MergeSameNumberDocTest(unittest.TestCase):
+    def test_existing_number_is_not_duplicated(self):
+        """既存案件に 01 の設計書（旧い名前）があれば、テンプレの 01-概要.md を作らない。"""
+        with tempfile.TemporaryDirectory(prefix="skel-init-test-") as tmp:
+            dest = Path(tmp) / "proj"
+            (dest / "docs/設計書").mkdir(parents=True)
+            (dest / "docs/設計書/01-overview.md").write_text("# 01 既存\n", encoding="utf-8")
+            r = run_init(str(dest), "--name", "検証", "--slug", "tinit7", "--merge", "--no-git")
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertFalse((dest / "docs/設計書/01-概要.md").exists())
+            self.assertIn("同じ番号の設計書が既にあるため作らない: docs/設計書/01-概要.md", r.stdout)
+            self.assertTrue((dest / "docs/設計書/template/05-セキュリティ.md").is_file())   # template/ の中は作る
+
+    def test_existing_number_other_extension(self):
+        """既存の 01 が .html でも、同じ番号として扱う。merge 後の検査で 01 の必須も通る。"""
+        with tempfile.TemporaryDirectory(prefix="skel-init-test-") as tmp:
+            dest = Path(tmp) / "proj"
+            (dest / "docs/設計書").mkdir(parents=True)
+            (dest / "docs/設計書/01-目標構成.html").write_text("<p>既存</p>\n", encoding="utf-8")
+            r = run_init(str(dest), "--name", "検証", "--slug", "tinit8", "--merge", "--no-git")
+            self.assertFalse((dest / "docs/設計書/01-概要.md").exists())
+            self.assertNotIn("必須ファイル: docs/設計書/01", r.stdout)
+            self.assertNotIn("作業ログ/最新.md", r.stdout.split("== 結果")[0])   # 生成物の参照は検査しない
+
+
 class UnitTest(unittest.TestCase):
     def test_is_mechanism(self):
         f = INIT.is_mechanism
@@ -190,7 +215,7 @@ class UnitTest(unittest.TestCase):
         self.assertTrue(f("docs/案件/01_タスク管理/new.py"))
         self.assertTrue(f("docs/案件/01_タスク管理/index.html"))
         self.assertFalse(f("docs/案件/01_タスク管理/README.md"))
-        self.assertFalse(f("docs/設計書/05-セキュリティ設計.md"))
+        self.assertFalse(f("docs/設計書/05-セキュリティ.md"))
         self.assertFalse(f("CLAUDE.md"))
 
     def test_mask_markers(self):

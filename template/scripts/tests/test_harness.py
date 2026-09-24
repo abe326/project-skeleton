@@ -125,7 +125,7 @@ class Harness(unittest.TestCase):
 
     def test_section_nine_deny(self):
         with TempProject() as root:
-            write(root / "docs/設計書/05-セキュリティ設計.md", SEC9)
+            write(root / "docs/設計書/05-セキュリティ.md", SEC9)
             self.base(root, deny=["Bash(git push --force *)"])
             rec = Recorder()
             cs.check_harness(root, report=rec)
@@ -143,16 +143,16 @@ class Harness(unittest.TestCase):
             write(root / ".claude/hooks/lint_guard.sh", "exit 0\n")
             write(root / ".claude/hooks/lint_guard.py", "pass\n")
             write(root / ".claude/hooks/phase.py", "")
-            fail, warn, out = run_full(root, "立ち上げ")
+            fail, warn, out = run_full(root, "Sketch")
             self.assertEqual((fail, warn), (0, 0))
             self.assertIn("INFO 台帳に無いハーネス 2 件", out)
-            fail, warn, out = run_full(root, "開発")
+            fail, warn, out = run_full(root, "Build")
             self.assertEqual((fail, warn), (0, 1))
             self.assertIn("WARN 台帳に無いハーネス 2 件", out)
             rows = ("| HN-01 | 定型手順 | x | - | 定義済 | `.claude/skills/deploy-check/SKILL.md` | - |\n"
                     "| HN-02 | 品質ゲート | x | - | 定義済 | `.claude/hooks/lint_guard.sh`・settings.json | - |\n")
             self.base(root, rows)
-            fail, warn, out = run_full(root, "開発")
+            fail, warn, out = run_full(root, "Build")
             self.assertEqual((fail, warn), (0, 0), out)
 
 

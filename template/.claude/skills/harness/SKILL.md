@@ -29,6 +29,7 @@ description: この案件のハーネス（skill・hook・rules・permissions・
 | グローバルとの干渉 | SessionStart に「マシン側:」が出た / 期待しない hook が走った / skill が権限で拒否された | 案件で抑えるか、マシン側の問題として記録するか | 下の「グローバルとの干渉」、台帳の「マシン依存」行 |
 
 - 「2 回」は台帳で数える。1 回目は候補として 1 行書き、2 回目はその行のきっかけ欄に日付を足す
+- **スケルトンの決まりが合わず変えた・外した**（hook を止めた、ルールを緩めた、テンプレの仕組みを直した）ときも台帳に 1 行書く。ほかの案件でも効きそうなら「返す」列に理由を書く（スケルトン側が `scripts/collect_returns.py` で集めて取り込むかを決める）
 - 05 §9「Claude Code が行ってはいけない操作」は「危険操作」の定義先の 1 つ（05 の構成は変えない）
 
 ## 候補を書く（Claude が書く。確認しない）
@@ -72,7 +73,7 @@ description: この案件のハーネス（skill・hook・rules・permissions・
 | env | `.claude/settings.json` の `env`。サブエージェントの既定は `CLAUDE_CODE_SUBAGENT_MODEL=sonnet`（上げるなら台帳経由） | — |
 | 台帳 | 状態・定義先・更新日を書く | 状態が 4 値のどれか / 定義済の定義先が実在 |
 
-- コア以外の skill・rules・agents・hook が台帳の定義済に無いと、検査が件数を出す（立ち上げ期は情報、開発・運用期は警告。止めない）
+- コア以外の skill・rules・agents・hook が台帳の定義済に無いと、検査が件数を出す（Sketch は情報、Build は警告。止めない）
 - 定義したら `python3 scripts/check_skeleton.py` を回し、fail=0 を確かめてから報告する
 
 ### 最初の昇格例（品質ゲート）

@@ -144,7 +144,8 @@ class CheckSkeletonTest(unittest.TestCase):
             self.assertTrue(any("差し込み口" in f for f in rec.fails), rec.fails)
             readme = root / "docs/設計書/README.md"
             text = readme.read_text(encoding="utf-8").replace(
-                "| `package.json`", "| 表で書きにくい判定 | `.claude/hooks/impact_map_local.py` | 差し込み口 |\n| `package.json`", 1)
+                "| `docs/設計書/01-概要.md`",
+                "| 表で書きにくい判定 | `.claude/hooks/impact_map_local.py` | 差し込み口 |\n| `docs/設計書/01-概要.md`", 1)
             readme.write_text(text, encoding="utf-8")
             rec = Recorder()
             cs.check_design_docs(root, report=rec, secrets=False, template=True)
@@ -208,7 +209,7 @@ class FreshnessNestedTest(unittest.TestCase):
             write(root / ".gitignore", "repos/\n")
             config(root, {"nested_repos": ["repos/core"]})
             meta = f"> 最終更新: 2099-01-01（APP-01: x）／ 対象: repos/core/schemas/** / core@{sha}"
-            write(root / "docs/設計書/02-architecture.md", f"# 02 構成\n\n{meta}\n\n本文\n")
+            write(root / "docs/設計書/02-構成.md", f"# 02 構成\n\n{meta}\n\n本文\n")
             git(root, "init", "-q")
             git(root, "add", "-A")
             git(root, "commit", "-q", "-m", "root")
@@ -232,7 +233,7 @@ class FreshnessNestedTest(unittest.TestCase):
             git(repo, "add", "-A")
             git(repo, "commit", "-q", "-m", "a")
             config(root, {"nested_repos": ["repos/core"]})
-            write(root / "docs/設計書/02-architecture.md",
+            write(root / "docs/設計書/02-構成.md",
                   "# 02\n\n> 最終更新: 2099-01-01（x）／ 対象: repos/core/a.txt / repo@abcdef1\n")
             git(root, "init", "-q")
             r = run_py(root / "scripts/docs_freshness.py", "--phase", "開発", cwd=root)

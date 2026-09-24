@@ -12,11 +12,13 @@ description: docs/案件/01_タスク管理/ のタスクと課題を扱う手�
 
 ## CLI（`docs/案件/01_タスク管理/` で実行）
 
+**読むのは open だけ。** `closed/` は ID で指されたとき（「（決定 QA-03）」など）だけ開く。最近の出来事は `docs/案件/作業ログ/最新.md`（生成物）。
+
 | 操作 | コマンド | 結果 |
 |:--|:--|:--|
 | 起票 | `python3 new.py <area> "タイトル" [--priority 高] [--owner 名前] [--due YYYY-MM-DD] [--tag x]` | `open/<ID>_タイトル.md` を雛形付きで作る。**出力の 1 行目が確定した ID** |
 | 課題として起票 | `python3 new.py <area> "〜するか" --kind 課題 [--decider SH-02] [--due YYYY-MM-DD]` | kind が 課題 の md（7 節） |
-| 決定を記録（起票してすぐ閉じる） | `python3 new.py <area> "〜するか" --decided "<決定>" --to "反映済: 01 §3" [--to "APP-03"]` | 課題を作り `## 決定` に 1 行目と落ち先を書いて `closed/` へ。`--to` が無いと何も作らない |
+| 決定を記録（起票してすぐ閉じる） | `python3 new.py <area> "〜するか" --decided "<決定>" --to "反映済: 01 §3" [--to "APP-03"]` | 課題を作り `## 決定` に 1 行目と落ち先を書いて `closed/` へ。`--to` が無いと何も作らない。**決まったことの正本はここだけ**（打合せ記録・設計書からは ID で指す） |
 | 領域を足して起票 | `python3 new.py 新領域 "タイトル" --add-area 新領域:NEW` | `areas.json` に足してから起票 |
 | 引数と領域の一覧 | `python3 new.py -h` | 何も作らない |
 | クローズ | `python3 close.py <ID>` | `open/` → `closed/` へ移動（付随資料も一緒に）、status を 完了 に |

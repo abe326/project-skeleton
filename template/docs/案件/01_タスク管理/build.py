@@ -617,7 +617,23 @@ def main() -> int:
     print(f"生成: {summary}")
 
     update_overview(tasks, screens, check=False)
+    write_work_log()
     return 0
+
+
+def write_work_log() -> None:
+    """作業ログ（docs/案件/作業ログ/）を正本から作り直す。scripts/work_log.py が無い・失敗しても止めない。"""
+    script = ROOT / "scripts/work_log.py"
+    if not script.is_file():
+        return
+    import subprocess
+    try:
+        r = subprocess.run([sys.executable, str(script)], cwd=str(ROOT), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=30)
+        if r.stdout.strip():
+            print(r.stdout.strip())
+    except (OSError, subprocess.SubprocessError) as e:
+        print(f"作業ログを生成できなかった: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":

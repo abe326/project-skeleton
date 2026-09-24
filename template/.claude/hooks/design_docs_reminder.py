@@ -10,12 +10,12 @@ stdin の JSON から tool_input.file_path を読み、次の順に処理する�
      .claude/hooks/impact_map_local.py があればその targets() の結果も足す）に当たれば、
      phase.level("design_docs_reminder", <フェーズ>) で出し分ける
        none → 何も出さない
-       info（立ち上げ）→ セッションで 1 回だけ「[設計書候補] … 立ち上げ期は直さなくてよい …」
-       warn（開発・運用）→ 候補の組み合わせごとに 1 回「[設計書追随] … 区切りで、決まったことを 1 行拾う」
+       info（Sketch）→ セッションで 1 回だけ「[設計書候補] … Sketch の間は直さなくてよい …」
+       warn（Build）→ 候補の組み合わせごとに 1 回「[設計書追随] … 区切りで、決まったことを 1 行拾う」
      既出のキーにフェーズを含めるので、フェーズを切り替えた直後にはもう一度出る
 
   - .work/・.claude/・docs/案件/01_タスク管理/ 配下は 2・3 の対象外
-  - フェーズは phase.read_phase(root)。import できない・読めないときは「立ち上げ」扱い（静かな側に倒す）
+  - フェーズは phase.read_phase(root)。import できない・読めないときは「Sketch」扱い（静かな側に倒す）
   - 既出の記録は pickup_state.already_seen（state は tempfile.gettempdir()/claude_docs_reminder_<session_id>.json。
     環境変数 CLAUDE_DOCS_REMINDER_STATE_DIR で置き場を変えられる）。session_id が無ければ毎回出す
   - 例外はすべて握りつぶして exit 0（編集を妨げない）
@@ -68,13 +68,13 @@ def record_touch(session_id, rel: str) -> None:
 
 
 def current_level(root: str) -> tuple[str, str]:
-    """(フェーズ, design_docs_reminder のレベル)。分からなければ (立ち上げ, info)。"""
+    """(フェーズ, design_docs_reminder のレベル)。分からなければ (Sketch, info)。"""
     try:
         import phase as phase_mod  # noqa: WPS433
         ph = phase_mod.read_phase(root)
         return ph, phase_mod.level("design_docs_reminder", ph)
     except Exception:
-        return "立ち上げ", "info"
+        return "Sketch", "info"
 
 
 def is_meeting(rel: str) -> bool:
@@ -142,10 +142,10 @@ def main() -> int:
         if lvl == "none":
             return 0
         if lvl == "info":
-            # 立ち上げ期: 候補の組み合わせに関係なくセッションで 1 回だけ
+            # Sketch の間: 候補の組み合わせに関係なくセッションで 1 回だけ
             if already_seen(session_id, f"phase:{phase}:info"):
                 return 0
-            emit(f"[設計書候補] {rel} の変更は {'、'.join(candidates)} に関わる。{phase}期は直さなくてよい。"
+            emit(f"[設計書候補] {rel} の変更は {'、'.join(candidates)} に関わる。{phase} の間は直さなくてよい。"
                  f"決まったことなら落ち先に「→ {candidate_example(candidates)}」と書く（pickup スキル）")
             return 0
         if already_seen(session_id, f"phase:{phase}|" + "|".join(sorted(candidates))):

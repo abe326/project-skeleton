@@ -14,13 +14,13 @@
   python3 scripts/check_drops.py --json          # 機械向け
 
 重さ（括弧は phase.level のキー。無いものは固定）:
-  打合せ記録の落ち先なし（pickup_orphans）                          立ち上げ 情報 ／ 開発・運用 警告
+  打合せ記録の落ち先なし（pickup_orphans）                          Sketch 情報 ／ Build 警告
   書式違反（1 桁 ID など）・ID 不在・未決なのに課題でない・台帳に無い HN（pickup） 全フェーズ 警告
   閉じた課題に `## 決定` か落ち先が無い・落ち先が壊れている（pickup）              全フェーズ 警告
-  設計書の（未決 ID）が閉じた課題を指している（pickup_orphans）       立ち上げ 情報 ／ 開発・運用 警告
+  設計書の（未決 ID）が閉じた課題を指している（pickup_orphans）       Sketch 情報 ／ Build 警告
   確認依頼一覧の [ ] 行に ID が無い（pickup_orphans）。ID 不在は（pickup）
   確認依頼一覧の [ ] 行の課題が閉じている・期限切れの open・旧形式 U-NN   情報（固定）
-  `→ 候補: NN §n` のままの決定                                         立ち上げ 出さない ／ 開発・運用 情報
+  `→ 候補: NN §n` のままの決定                                         Sketch 出さない ／ Build 情報
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ class Checker:
     def __init__(self, root: str):
         self.root = root
         self.drops, self.phase_mod = load_modules(root)
-        self.phase = "立ち上げ"
+        self.phase = "Sketch"
         if self.phase_mod is not None:
             try:
                 self.phase = self.phase_mod.read_phase(root)
@@ -99,7 +99,7 @@ class Checker:
         for row in d.parse_meeting(os.path.join(self.root, rel)):
             label = f"{row.kind}「{d.short(row.text, 30)}」"
             for drop in d.parse_drops(row.drop_raw):
-                if drop.kind == "candidate" and self.phase != "立ち上げ":
+                if drop.kind == "candidate" and self.phase != "Sketch":
                     p = d.resolve(drop, self.items, self.root, self.ledger)
                     if p is None:
                         self.add("info", rel, row.line_no, "candidate",
@@ -126,7 +126,7 @@ class Checker:
             for msg in d.issue_problems(text, self.items, self.root, self.ledger):
                 self.add("pickup", item.path, line, "issue",
                          f"閉じた課題 {item.id}: {msg}（close.py を通さずに移した？ `## 決定` を書く）")
-            if self.phase != "立ち上げ":
+            if self.phase != "Sketch":
                 _, drops_raw = d.issue_decision(text)
                 for raw in drops_raw:
                     if d.has_candidate(raw):

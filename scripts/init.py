@@ -59,16 +59,16 @@ MECHANISM_PREFIXES = (".claude/", "scripts/")
 MECHANISM_TASK_DIR = "docs/案件/01_タスク管理/"
 
 NEXT_STEPS_NEW = """\
-== 次にやること（立ち上げフェーズ。最初はこの 4 つだけでよい）
+== 次にやること（Sketch フェーズ。最初はこの 4 つだけでよい）
   1. 打合せ・会話で出たことを記録する   docs/案件/02_打合せ/YYYYMMDD_タイトル.md（Claude に「打合せを記録して」でよい）
   2. 決まっていないことを課題にする     python3 docs/案件/01_タスク管理/new.py 横断 "…" --kind 課題
-  3. 目的とスコープを 1 行ずつ書く      docs/設計書/01-overview.md §1・§3
+  3. 目的とスコープを 1 行ずつ書く      docs/設計書/01-概要.md §1・§3
   4. 現在地を 1 行書く                  docs/プロジェクト概要.html「3. 現在地」（Claude に「現在地を直して」でよい）
 
   今は書かなくてよいもの（必要になったら Claude が案内する）:
-    環境情報.md / 設計書 02〜09 / runbook / ADR / 画面（screens） / areas.json / CLAUDE.md §5・§6 / ハーネス台帳"""
+    環境情報.md / 01 以外の設計書（要るときに scripts/add_doc.py で足す） / runbook / ADR / 画面（screens） / areas.json / CLAUDE.md §5・§6 / ハーネス台帳"""
 NEXT_STEPS_UNSET_HEAD = "  空欄のまま残したもの:"
-NEXT_STEPS_UNSET_DESC = "    - 案件の説明（--desc なし）: CLAUDE.md §1・README.md・概要 HTML・01-overview.md §1 に「（未記入…）」"
+NEXT_STEPS_UNSET_DESC = "    - 案件の説明（--desc なし）: CLAUDE.md §1・README.md・概要 HTML・01-概要.md §1 に「（未記入…）」"
 NEXT_STEPS_UNSET_OWNER = "    - 担当（--owner なし）: README.md・概要 HTML の「管理」・案件情報.md §1 に「（未定）」"
 NEXT_STEPS_TAIL = """\
   初めて Claude Code で開くとき: 対話起動（claude）でフォルダを開き、ワークスペースを信頼する（SETUP.md §8）
@@ -76,8 +76,8 @@ NEXT_STEPS_TAIL = """\
 NEXT_STEPS_MERGE = """\
 == 次にやること（既存プロジェクトへの適用）
   1. 上の differs のうち「仕組み」を取り込む（「内容」は案件側で書き換え済みのはず。必要な節だけ）
-  2. フェーズを設定する: python3 .claude/hooks/phase.py --set <立ち上げ|開発|運用>
-     （設定しないと立ち上げ扱いになり、開発中の案件では設計書追随が弱まる）
+  2. フェーズを設定する: python3 .claude/hooks/phase.py --set <Sketch|Build>
+     （設定しないと Sketch 扱いになり、Build 中の案件では設計書追随が弱まる）
   3. スケルトンの CHANGELOG.md の「既存プロジェクトへの適用」の手順に沿って残りを移す
   4. python3 scripts/check_skeleton.py で fail=0 を確かめる
   5. タスク管理を使うなら python3 docs/案件/01_タスク管理/build.py（--merge では build を実行していない）
@@ -164,6 +164,15 @@ def same_content(rel_str: str, existing: bytes, rendered: bytes) -> bool:
         return mask_markers(existing.decode("utf-8"), names) == mask_markers(rendered.decode("utf-8"), names)
     except UnicodeDecodeError:
         return False
+
+
+def same_number_doc(dest: Path, rel_str: str) -> bool:
+    """rel_str が docs/設計書/NN-*.md で、生成先に同じ NN の別の文書があるか（拡張子は問わない。template/ の中は対象外）。"""
+    m = re.fullmatch(r"docs/設計書/(\d{2})-[^/]+\.md", rel_str)
+    if not m:
+        return False
+    return any(p.is_file() and p.name != Path(rel_str).name
+               for p in (dest / "docs/設計書").glob(f"{m.group(1)}-*"))
 
 
 def is_mechanism(rel_str: str) -> bool:
@@ -321,6 +330,11 @@ def main() -> int:
                         warnings.append(f"未知のプレースホルダが残っています: {rel_str}: {', '.join(leftover)}")
                     rendered = text.encode("utf-8")
 
+            if not dst.exists() and same_number_doc(dest, rel_str):
+                # 既存案件に同じ番号の設計書（旧い名前・独自の名前）があれば作らない（番号が 2 本にならないように）
+                skipped.append(rel_str)
+                warnings.append(f"同じ番号の設計書が既にあるため作らない: {rel_str}")
+                continue
             if dst.exists():
                 skipped.append(rel_str)
                 if rel_str in GENERATED_SKIP:

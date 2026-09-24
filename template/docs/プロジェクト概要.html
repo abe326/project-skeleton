@@ -8,7 +8,7 @@
   docs/プロジェクト概要.html — 目的・思想・現在地・将来対応・構成図の正本。
   編集は update-overview スキルで、各 BEGIN/END マーカーの内側だけを触る。
   task-snapshot・open-issues・milestones・recent-decisions は docs/案件/01_タスク管理/build.py が自動生成する（手で編集しない）。
-  phase の data-phase（立ち上げ / 開発 / 運用）は機械が読む。切り替えは python3 .claude/hooks/phase.py --set <フェーズ>（update-overview スキル）。
+  phase の data-phase（Sketch / Build）は機械が読む。切り替えは python3 .claude/hooks/phase.py --set <フェーズ>（AI が判断。update-overview スキル）。
   単一ファイル・外部 script/link 禁止・秘密（URL・ID・パスワード）は書かない（環境情報.md 参照と書く）。
   検査: python3 scripts/check_skeleton.py --overview
 -->
@@ -176,7 +176,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
   <h2>目的・背景</h2>
   <!-- BEGIN:purpose -->
   <p>{{PROJECT_NAME}} は、{{PROJECT_DESC}}</p>
-  <p>（誰の、どんな困りごとを、どう解くか。なぜ今やるのか。詳細は <code>docs/設計書/01-overview.md</code>）</p>
+  <p>（誰の、どんな困りごとを、どう解くか。なぜ今やるのか。詳細は <code>docs/設計書/01-概要.md</code>）</p>
   <!-- END:purpose -->
 </section>
 
@@ -199,8 +199,8 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
   <div class="eyebrow"><span class="no">03</span>WHERE WE ARE</div>
   <h2>現在地</h2>
   <!-- BEGIN:phase -->
-  <div class="phase" data-phase="立ち上げ">
-    <div class="name">立ち上げ</div>
+  <div class="phase" data-phase="Sketch">
+    <div class="name">Sketch</div>
     <div class="word">プロジェクトを {{CREATED}} に生成した。<strong>次の一手:</strong> 打合せ・会話で出たことを記録し、決まっていないことを課題にする。目的とスコープを 1 行ずつ書く。</div>
   </div>
   <!-- END:phase -->
@@ -254,7 +254,7 @@ footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line);
 <pre><code>  利用者 ──▶ [ フロント ] ──▶ [ API ] ──▶ [ DB ]
                                    └──▶ [ 外部サービス ]
 
-  （テキスト図。詳細は docs/設計書/02-architecture.md）</code></pre>
+  （テキスト図。詳細は docs/設計書/02-構成.md）</code></pre>
   <table>
     <thead><tr><th style="width:12em">名前</th><th>用途</th><th style="width:14em">正本の所在</th></tr></thead>
     <tbody>

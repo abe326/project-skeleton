@@ -13,7 +13,7 @@ fi
 
 echo "## セッションコンテキスト（session_context.sh 自動注入）"
 
-# 0) フェーズ（phase.py。python が無ければ data-phase を grep。読めなければ立ち上げ扱い）
+# 0) フェーズ（phase.py。python が無ければ data-phase を grep。読めなければ Sketch 扱い）
 OV="docs/プロジェクト概要.html"
 phase_line=""
 if [ -n "$PY" ] && [ -f ".claude/hooks/phase.py" ]; then
@@ -24,15 +24,14 @@ sys.path.insert(0, ".claude/hooks")
 import phase
 p, problem = phase.phase_status(".")
 note = {
-    "立ち上げ": "拾うだけ。設計書は未記入でよい",
-    "開発": "設計書追随が有効。直すなら sync-design-docs",
-    "運用": "設計書追随が有効。本番操作は 05 §9",
+    "Sketch": "拾うだけ。設計書は未記入でよい",
+    "Build": "設計書追随が有効。直すなら sync-design-docs。本番操作は 05 §9",
 }[p]
 line = f"- フェーズ: {p}（{note}。表は python3 .claude/hooks/phase.py --table）"
 if problem == "属性なし":
     line += "。概要 HTML に data-phase が無い（python3 .claude/hooks/phase.py --set <フェーズ> で設定）"
 elif problem and problem.startswith("不正な値"):
-    line += f"。概要 HTML の data-phase が{problem}（立ち上げ扱い）"
+    line += f"。概要 HTML の data-phase が{problem}（Sketch 扱い）"
 s = phase.suggest(".", p)
 if s:
     line += "。" + s
@@ -42,7 +41,7 @@ PYEOF
 fi
 if [ -z "$phase_line" ]; then
   ph=$(awk '/BEGIN:phase/{f=1} f{print} /END:phase/{f=0}' "$OV" 2>/dev/null | grep -oE 'data-phase="[^"]*"' | head -1 | cut -d'"' -f2)
-  case "$ph" in 開発|運用) ;; *) ph="立ち上げ" ;; esac
+  case "$ph" in 開発|運用|[Bb][Uu][Ii][Ll][Dd]) ph="Build" ;; *) ph="Sketch" ;; esac
   phase_line="- フェーズ: ${ph}（表は python3 .claude/hooks/phase.py --table）"
 fi
 echo "$phase_line"
@@ -76,7 +75,14 @@ PYEOF
     top_n=$(grep -o '"priority" *: *"最高"' "$DATA" 2>/dev/null | wc -l | tr -d ' ')
     line="${open_n:-0} 件（課題 ${issue_n:-0}・最高 ${top_n:-0}。grep 概算）"
   fi
-  echo "- タスク: open ${line}。一覧は ${TM}/index.html、起票・クローズは task スキル。着手前に work-placement スキルで紐づけ先を確定"
+  # 作業ログ（生成物）: 直近 14 日の件数だけ。中身は必要なときに最新.md から読む
+  LOG="docs/案件/作業ログ/最新.md"
+  log_part=""
+  if [ -f "$LOG" ]; then
+    log_n=$(grep -c '^- ' "$LOG" 2>/dev/null | tr -d ' ')
+    log_part="。最近の出来事は ${LOG}（直近 14 日 ${log_n:-0} 件）"
+  fi
+  echo "- タスク: open ${line}（読むのは open だけ）。一覧は ${TM}/index.html、起票・クローズは task スキル。着手前に work-placement スキルで紐づけ先を確定${log_part}"
 else
   echo "- タスク: ${DATA} が未生成（python3 ${TM}/build.py で生成）。着手前に work-placement スキルで紐づけ先を確定"
 fi
@@ -109,7 +115,7 @@ if [ -d "$DD" ]; then
   stale=$(printf '%s' "$cnt" | awk 'NF==2 && $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ {print $1}')
   unfilled=$(printf '%s' "$cnt" | awk 'NF==2 && $1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ {print $2}')
   if [ -n "$stale" ]; then
-    case "$phase_line" in *"フェーズ: 立ち上げ"*) note="立ち上げ期は未記入でよい。" ;; *) note="" ;; esac
+    case "$phase_line" in *"フェーズ: Sketch"*) note="Sketch の間は未記入でよい。" ;; *) note="" ;; esac
     echo "- 設計書: 要確認 ${stale} 本・未記入 ${unfilled} 本（${note}一覧は python3 scripts/docs_freshness.py。直すなら sync-design-docs、棚卸しは audit-design-docs）"
   else
     miss=0

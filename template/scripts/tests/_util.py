@@ -27,7 +27,7 @@ PHASE_HTML = """<!doctype html>
 """
 
 
-def overview_html(phase: str | None, name: str = "立ち上げ") -> str:
+def overview_html(phase: str | None, name: str = "Sketch") -> str:
     attr = "" if phase is None else f' data-phase="{phase}"'
     return PHASE_HTML.format(attr=attr, name=name)
 

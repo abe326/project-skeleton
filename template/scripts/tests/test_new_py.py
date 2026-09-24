@@ -12,7 +12,7 @@ TM = "docs/案件/01_タスク管理"
 NEW = f"{TM}/new.py"
 # 起票に要る実物（drops.py は --to の確認、設計書は「反映済: 01 §3」の実在、概要 HTML は直近の決定）
 COPY = (f"{TM}/new.py", f"{TM}/close.py", f"{TM}/build.py", f"{TM}/areas.json",
-        ".claude/hooks/drops.py", ".claude/hooks/phase.py", "docs/設計書/01-overview.md",
+        ".claude/hooks/drops.py", ".claude/hooks/phase.py", "docs/設計書/01-概要.md",
         "docs/プロジェクト概要.html")
 
 

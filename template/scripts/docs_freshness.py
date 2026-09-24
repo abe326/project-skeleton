@@ -13,7 +13,8 @@
   (a) メタ行が無い・日付が読めない
   (b) 今日 − 最終更新 > N 日（既定 30。--days N ＞ 環境変数 DOCS_FRESHNESS_DAYS ＞ 既定。
       メタ行の「鮮度: N日」が最優先。0 で無効）。フェーズの厳しさ docs_stale_days が「何もしない」
-      （立ち上げ）のときは評価しない。フェーズは --phase ＞ .claude/hooks/phase.py の read_phase
+      （Sketch）のときは評価しない。フェーズは --phase ＞ .claude/hooks/phase.py の read_phase
+      （--phase は旧い値・大小文字違いも読み替える）
   (c) 対象にパスがあり sha が実在し、git diff <sha>..HEAD -- <パス…> が非空 → ソース変更あり
   (c') git status --porcelain -- <パス…> が非空 → 未コミット変更あり
   (c'') パスがあるのに sha が無い → 鮮度検証不可。sha が git に無い → sha 不在
@@ -43,7 +44,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / ".claude/hooks"))
 import project_config  # noqa: E402
 DESIGN_DIR = ROOT / "docs/設計書"
-EXCLUDE_DIRS = {"decisions", "runbook"}
+EXCLUDE_DIRS = {"decisions", "runbook", "template"}   # template/ は足す前の元（add_doc.py）
 HEAD_LINES = 20
 DEFAULT_DAYS = 30
 
@@ -57,16 +58,20 @@ UNFILLED = "未記入"
 
 
 def current_phase(argv: list[str]) -> str:
-    """--phase ＞ phase.read_phase。import できなければ立ち上げ扱い。"""
+    """--phase ＞ phase.read_phase。import できなければ Sketch 扱い。--phase は旧い値・大小文字違いも読み替える。"""
     try:
         import phase as phasemod
     except ImportError:
         phasemod = None
     if "--phase" in argv:
         i = argv.index("--phase")
-        if i + 1 < len(argv) and (phasemod is None or argv[i + 1] in phasemod.PHASES):
-            return argv[i + 1]
-    return phasemod.read_phase(ROOT) if phasemod else "立ち上げ"
+        if i + 1 < len(argv):
+            if phasemod is None:
+                return argv[i + 1]
+            normalized = phasemod.normalize(argv[i + 1])
+            if normalized is not None:
+                return normalized
+    return phasemod.read_phase(ROOT) if phasemod else "Sketch"
 
 
 def phase_level(key: str, phase: str) -> str:

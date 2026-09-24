@@ -592,9 +592,15 @@ def _meeting_date(rel: str) -> tuple[str, str]:
 
 
 def recent_decisions(root: str, n: int = 5) -> list[dict]:
-    """打合せ記録の決定行（日付はファイル名）と閉じた課題の `## 決定`（日付は closed）を新しい順に n 件。"""
+    """打合せ記録の決定行（日付はファイル名）と閉じた課題の `## 決定`（日付は closed）を新しい順に n 件。
+
+    決定の正本は課題。落ち先が課題の ID の決定行は、課題の側で数える（二重にしない）。
+    旧い形（`→ 反映済: 01 §3` など）の決定行は、そのまま決定として数える。
+    """
     found = []
     seq = 0
+    items = load_items(root)
+    issue_ids = {i for i, it in items.items() if it.kind == "課題"}
     for rel in meeting_files(root):
         date, title = _meeting_date(rel)
         if not date:
@@ -602,10 +608,13 @@ def recent_decisions(root: str, n: int = 5) -> list[dict]:
         for r in parse_meeting(os.path.join(root, rel)):
             if r.kind != "決定" or not r.text:
                 continue
+            m = ID_ANY.match((r.drop_raw or "").strip())
+            if m and m.group(1) in issue_ids:
+                continue
             seq += 1
             found.append({"date": date, "text": r.text, "source": f"打合せ {date[5:7]}/{date[8:10]} {title}".strip(),
                           "ref": rel, "seq": seq})
-    for it in load_items(root).values():
+    for it in items.values():
         if it.state != "closed" or it.kind != "課題":
             continue
         text = read_text(os.path.join(root, it.path)) or ""

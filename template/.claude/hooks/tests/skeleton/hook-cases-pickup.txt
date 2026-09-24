@@ -3,7 +3,7 @@
 #
 # 書式: <期待 none|context|block><TAB><手順><TAB><出力に含む文字列 or -><TAB><フェーズ or -><TAB><備考>
 #   期待は「最後の手順」の出力に対して見る（none = 出力なし / context = additionalContext / block = "decision":"block"）
-#   フェーズ: - は立ち上げ（data-phase="立ち上げ"）。立ち上げ / 開発 / 運用 は概要 HTML の data-phase に書く。なし は phase マーカーの無い概要 HTML
+#   フェーズ: - は Sketch（data-phase="Sketch"）。Sketch / Build は概要 HTML の data-phase に書く（旧い値もそのまま書けば読み替わる）。なし は phase マーカーの無い概要 HTML
 # 手順は ; 区切り:
 #   prompt:<文>        UserPromptSubmit を流す（\n は改行）
 #   prompt-long:<字数>  字数ぶんの貼り付け文（「あとで」を含む）を流す
@@ -60,18 +60,18 @@ none	prompt:ログの整理はあとでやろう;stop;prompt-raw:<task-notificat
 block	prompt:ログの整理はあとでやろう;stop;prompt:ログの整理はあとでやろう、まだ？;stop	あとで	-	別の依頼の同じ語は別件
 
 # --- Stop: 実装の区切り（S3）---
-block	touch:src/auth/login.py;stop	05-セキュリティ設計.md	開発	S3
-block	prompt:ログインを実装して;bash:docs/設計書/01-overview.md;touch:src/auth/login.py;stop	05-セキュリティ設計.md	開発	候補以外の設計書を触っても S3
-block	touch:src/auth/login.py;stop	決まったことを 1 行	運用	運用も S3
-none	touch:src/auth/login.py;touch:docs/設計書/05-セキュリティ設計.md;stop	-	開発	候補を触った
-none	prompt:ログインを実装して;touch:src/auth/login.py;bash:docs/設計書/05-セキュリティ設計.md;stop	-	開発	候補を Bash で直した（mtime）
-none	touch:src/auth/login.py;stop	-	立ち上げ	立ち上げ期は S3 なし
-none	touch:src/auth/login.py;stop;touch:src/auth/login.py;stop	-	開発	同じ候補集合は 1 回
-none	touch:src/auth/login.py;stop	-	なし	フェーズ不明は立ち上げ扱い
-none	touch:src/util/strings.py;stop	-	開発	影響マップに当たらない
-none	touch:.work/一時/20260923_x/a.py;stop	-	開発	.work/ はソースに数えない
-block	prompt:あとでやろうね、この件は;touch:02_打合せ/nodrop.md;touch:src/auth/login.py;stop	落ち先なし	開発	3 信号 → 1 回の block
-block	prompt:あとでやろうね、この件は;touch:02_打合せ/nodrop.md;touch:src/auth/login.py;stop	05-セキュリティ設計.md	開発	同上（S3 の行も同じ reason に入る）
+block	touch:src/auth/login.py;stop	05-セキュリティ設計.md	Build	S3
+block	prompt:ログインを実装して;bash:docs/設計書/01-overview.md;touch:src/auth/login.py;stop	05-セキュリティ設計.md	Build	候補以外の設計書を触っても S3
+block	touch:src/auth/login.py;stop	決まったことを 1 行	運用	旧い値「運用」も Build に読み替えて S3
+none	touch:src/auth/login.py;touch:docs/設計書/05-セキュリティ設計.md;stop	-	Build	候補を触った
+none	prompt:ログインを実装して;touch:src/auth/login.py;bash:docs/設計書/05-セキュリティ設計.md;stop	-	Build	候補を Bash で直した（mtime）
+none	touch:src/auth/login.py;stop	-	Sketch	Sketch の間は S3 なし
+none	touch:src/auth/login.py;stop;touch:src/auth/login.py;stop	-	Build	同じ候補集合は 1 回
+none	touch:src/auth/login.py;stop	-	なし	フェーズ不明は Sketch 扱い
+none	touch:src/util/strings.py;stop	-	Build	影響マップに当たらない
+none	touch:.work/一時/20260923_x/a.py;stop	-	Build	.work/ はソースに数えない
+block	prompt:あとでやろうね、この件は;touch:02_打合せ/nodrop.md;touch:src/auth/login.py;stop	落ち先なし	Build	3 信号 → 1 回の block
+block	prompt:あとでやろうね、この件は;touch:02_打合せ/nodrop.md;touch:src/auth/login.py;stop	05-セキュリティ設計.md	Build	同上（S3 の行も同じ reason に入る）
 
 # --- 安全弁 ---
 none	nosid;touch:02_打合せ/nodrop.md;stop	-	-	session_id なしは黙る

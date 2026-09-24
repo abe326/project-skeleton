@@ -210,7 +210,7 @@ def main(argv: list[str]) -> int:
             continue
         expect, steps = cols[0].strip(), cols[1].split(";")
         want = cols[2].strip() if len(cols) > 2 and cols[2].strip() != "-" else ""
-        phase = cols[3].strip() if len(cols) > 3 and cols[3].strip() != "-" else "立ち上げ"
+        phase = cols[3].strip() if len(cols) > 3 and cols[3].strip() != "-" else "Sketch"
         note = cols[4].strip() if len(cols) > 4 else ""
         out = run_case(steps, phase, n)
         got = classify(out)

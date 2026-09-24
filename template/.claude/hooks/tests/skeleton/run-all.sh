@@ -5,7 +5,7 @@
 #   2) design_docs_reminder: hook-cases-reminder.txt の各行（<期待>\t<file_path>\t<含む文字列>\t<session_id>\t<root>\t<フェーズ>）を
 #      PostToolUse の JSON にして design_docs_reminder.sh へ流し、additionalContext の有無と内容を見る
 #      （影響マップは reminder-fixture/ の固定の表を使う。テンプレや案件の設計書 README に左右されない。
-#       フェーズは CLAUDE_SKELETON_PHASE で渡し、省略時は 開発）
+#       フェーズは CLAUDE_SKELETON_PHASE で渡し、省略時は Build）
 #      3〜6 列目の空欄は `-` で書く。bash の `IFS=$'\t' read` は連続するタブを 1 つに畳むので、空のタブ区切りは列ずれを起こす。
 #      末尾の列は省略してよい（guard 側は省略可能な列が最後の 1 つだけなので、この問題は起きない）
 #   3) pickup: run_pickup_cases.py（hook-cases-pickup.txt。UserPromptSubmit → PostToolUse → Stop の手順つきケース）
@@ -61,7 +61,7 @@ run_reminder() {  # $1=tool_name $2=file_path $3=session_id $4=root $5=phase →
   json=$("$PY" -c 'import json,sys; d={"tool_name":sys.argv[1],"tool_input":{"file_path":sys.argv[2]}}
 if sys.argv[3]: d["session_id"]=sys.argv[3]
 print(json.dumps(d, ensure_ascii=False))' "$1" "$2" "$3")
-  printf '%s' "$json" | CLAUDE_PROJECT_DIR="$4" CLAUDE_SKELETON_PHASE="${5:-開発}" bash "$hook" 2>/dev/null
+  printf '%s' "$json" | CLAUDE_PROJECT_DIR="$4" CLAUDE_SKELETON_PHASE="${5:-Build}" bash "$hook" 2>/dev/null
 }
 
 while IFS=$'\t' read -r expect path want sid root phase; do
@@ -73,7 +73,7 @@ while IFS=$'\t' read -r expect path want sid root phase; do
   path="${path//\{WIN\}/$win_root}"
   root="${root:-}"; root="${root//\{WIN\}/$win_root_for_env}"
   [ -n "$root" ] || root="$fixture"
-  out=$(run_reminder Write "$path" "${sid:-}" "$root" "${phase:-開発}")
+  out=$(run_reminder Write "$path" "${sid:-}" "$root" "${phase:-Build}")
   case "$out" in *additionalContext*) got=remind ;; *) got=none ;; esac
   ok=1
   [ "$got" = "$expect" ] || ok=0
@@ -87,12 +87,12 @@ while IFS=$'\t' read -r expect path want sid root phase; do
     pass=$((pass+1))
   else
     fail=$((fail+1))
-    printf 'NG reminder expect=%s got=%s want=%s : %s  [sid=%s root=%s phase=%s]\n    %s\n' "$expect" "$got" "${want:-}" "$path" "${sid:-}" "$root" "${phase:-開発}" "$out"
+    printf 'NG reminder expect=%s got=%s want=%s : %s  [sid=%s root=%s phase=%s]\n    %s\n' "$expect" "$got" "${want:-}" "$path" "${sid:-}" "$root" "${phase:-Build}" "$out"
   fi
 done < "$cases"
 
 # tool_name が Read なら何も出さない
-out=$(run_reminder Read "src/auth/login.py" "" "$fixture" 開発)
+out=$(run_reminder Read "src/auth/login.py" "" "$fixture" Build)
 if [ -z "$out" ]; then pass=$((pass+1)); else fail=$((fail+1)); printf 'NG reminder tool_name=Read で出力があった:\n    %s\n' "$out"; fi
 
 # --- 3〜5) python のランナー（最後の行の pass=N fail=M を足し込む）------------------

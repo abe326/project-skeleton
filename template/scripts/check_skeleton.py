@@ -25,15 +25,17 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / ".claude/hooks"))
 
-# 設計書 03〜09（01・02 は REQUIRED_FILES 側）。鮮度メタ行・改訂履歴の検査対象は docs/設計書/**/*.md 全体
-DESIGN_DOCS = [
-    "docs/設計書/03-ステークホルダー.md",
-    "docs/設計書/04-設計原則.md",
-    "docs/設計書/05-セキュリティ設計.md",
-    "docs/設計書/06-品質設計.md",
-    "docs/設計書/07-開発運用設計.md",
-    "docs/設計書/08-利用者運用設計.md",
-    "docs/設計書/09-非機能と縮退.md",
+# 設計書は育てる: 生成時は 01 だけ。02〜09 の元は docs/設計書/template/（scripts/add_doc.py で足す。検査の対象外）
+DESIGN_TEMPLATE_FILES = [
+    "docs/設計書/template/catalog.json",
+    "docs/設計書/template/02-構成.md",
+    "docs/設計書/template/03-関係者.md",
+    "docs/設計書/template/04-原則.md",
+    "docs/設計書/template/05-セキュリティ.md",
+    "docs/設計書/template/06-品質と確認.md",
+    "docs/設計書/template/07-変更と反映.md",
+    "docs/設計書/template/08-利用者の運用.md",
+    "docs/設計書/template/09-非機能と障害時.md",
 ]
 
 REQUIRED_FILES = [
@@ -60,6 +62,7 @@ REQUIRED_FILES = [
     ".claude/hooks/tests/skeleton/hook-cases-guard.txt",
     ".claude/hooks/tests/skeleton/hook-cases-reminder.txt",
     ".claude/hooks/project_config.py",
+    ".claude/hooks/work_log.sh",
     ".claude/project.json",
     ".claude/hooks/phase.py",
     ".claude/hooks/machine_context.py",
@@ -85,9 +88,9 @@ REQUIRED_FILES = [
     "docs/案件/02_打合せ/README.md",
     "docs/案件/確認依頼一覧.md",
     "docs/設計書/README.md",
-    "docs/設計書/01-overview.md",
-    "docs/設計書/02-architecture.md",
-    *DESIGN_DOCS,
+    *DESIGN_TEMPLATE_FILES,
+    "scripts/add_doc.py",
+    "scripts/work_log.py",
     "docs/設計書/decisions/README.md",
     "docs/設計書/runbook/README.md",
     # 情報の流れ（落ち先・拾って流す）
@@ -129,7 +132,7 @@ CORE_HOOKS = {
     "design_docs_reminder.sh", "design_docs_reminder.py", "impact_map.py",
     "phase.py", "machine_context.py", "drops.py", "pickup_state.py",
     "pickup_cue.sh", "pickup_cue.py", "pickup_check.sh", "pickup_check.py",
-    "project_config.py",
+    "project_config.py", "work_log.sh",
 }
 # 案件が任意で置く差し込み口（台帳ではなく影響マップの表に行を書く。check_design_docs が見る）
 IMPACT_LOCAL = ".claude/hooks/impact_map_local.py"
@@ -139,6 +142,8 @@ AGENT_MODELS = ("inherit", "haiku", "sonnet", "opus", "fable")
 
 # CLAUDE.md 内のパス記述のうち、実在チェックから除外するパターン
 PATH_PATTERN_HINTS = ("YYYY", "MMDD", "NNN", "<", ">", "{", "}", "*", "…", "...", "xxx", "XXX", "用途", "例")
+# CLAUDE.md が指してよい生成物（無くても NG にしない。scripts/work_log.py・build.py が作る）
+GENERATED_PREFIXES = ("docs/案件/作業ログ/",)
 
 TEXT_EXTS = {
     ".md", ".html", ".py", ".json", ".js", ".sh", ".yml", ".yaml", ".toml",
@@ -190,7 +195,7 @@ def current_phase() -> str:
             import phase
             _PHASE = phase.read_phase(ROOT)
         except Exception:
-            _PHASE = "立ち上げ"
+            _PHASE = "Sketch"
     return _PHASE
 
 
@@ -271,19 +276,19 @@ def check_phase_attr() -> None:
         return
     _, problem = phase.phase_status(ROOT)
     if problem is None:
-        ok("概要 HTML の phase ブロックに data-phase（立ち上げ / 開発 / 運用）がある")
+        ok("概要 HTML の phase ブロックに data-phase（Sketch / Build。旧い値は読み替え）がある")
     elif problem.startswith("不正な値"):
         ng(f"概要 HTML の data-phase が {' / '.join(phase.PHASES)} のどれでもない（{problem}）")
     elif problem == "属性なし":
-        warn("概要 HTML の phase ブロックに data-phase が無い（立ち上げ扱い）。"
-             "python3 .claude/hooks/phase.py --set <立ち上げ|開発|運用> で設定する")
+        warn("概要 HTML の phase ブロックに data-phase が無い（Sketch 扱い）。"
+             "python3 .claude/hooks/phase.py --set <Sketch|Build> で設定する")
     # 読めない・ブロックなしはマーカー検査が NG を出す
 
 # 鮮度メタ行（2 行目付近）。template 検査では日付の代わりに {{CREATED}} プレースホルダも通す
 META_RE = re.compile(r"^> 最終更新: \d{4}-\d{2}-\d{2}（.+）／ 対象: .+")
 META_RE_TEMPLATE = re.compile(r"^> 最終更新: (?:\d{4}-\d{2}-\d{2}|\{\{CREATED\}\})（.+）／ 対象: .+")
 PLACEHOLDER_RE = re.compile(r"\{\{[A-Z_]+\}\}")
-DESIGN_EXCLUDE_DIRS = {"decisions", "runbook"}
+DESIGN_EXCLUDE_DIRS = {"decisions", "runbook", "template"}
 
 # ---------------------------------------------------------------------------
 # 秘密検出（secret_hits）。値そのものは NG 文言に出さない（ファイル: 行番号だけ）
@@ -533,9 +538,11 @@ def _dest_paths(cell: str) -> list[str]:
 
 
 def section_nine_patterns(root: Path) -> list[tuple[str, list[str]]]:
-    """05 §9 の表のうち状態が「決定」の行の (操作, deny 列の権限パターン)。"""
+    """05 §9 の表のうち状態が「決定」の行の (操作, deny 列の権限パターン)。05 を足していなければ空（対象ゼロ）。
+    05 は番号で探す（旧い名前 05-セキュリティ設計.md の案件もある）。"""
+    hits = sorted((Path(root) / "docs/設計書").glob("05-*.md"))
     try:
-        text = (Path(root) / "docs/設計書/05-セキュリティ設計.md").read_text(encoding="utf-8")
+        text = hits[0].read_text(encoding="utf-8") if hits else ""
     except (OSError, UnicodeDecodeError):
         return []
     m = re.search(r"^## 9\..*?$(.*?)(?=^## )", text, re.M | re.S)
@@ -653,6 +660,8 @@ def check_all() -> None:
         check((ROOT / rel).is_file(), f"必須ファイル: {rel}")
     for rel in REQUIRED_DIRS:
         check((ROOT / rel).is_dir(), f"必須ディレクトリ: {rel}")
+    # 01 の設計書（名前・拡張子は問わない。既存案件は 01-overview.md や独自の名前のことがある）
+    check(any(p.is_file() for p in (ROOT / "docs/設計書").glob("01-*")), "必須ファイル: docs/設計書/01-*（01 の設計書）")
 
     # CLAUDE.md 内の相対パスが実在
     claude_md = ROOT / "CLAUDE.md"
@@ -661,7 +670,7 @@ def check_all() -> None:
         seen: set[str] = set()
         for m in re.finditer(r"`((?:docs|\.claude|scripts|\.work)/[^`\s]+)`", text):
             rel = m.group(1)
-            if rel in seen or any(h in rel for h in PATH_PATTERN_HINTS):
+            if rel in seen or any(h in rel for h in PATH_PATTERN_HINTS) or rel.startswith(GENERATED_PREFIXES):
                 continue
             seen.add(rel)
             target = ROOT / rel.rstrip("/")

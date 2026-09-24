@@ -100,11 +100,11 @@ class CheckSecrets(unittest.TestCase):
     def test_design_only(self):
         with TempProject() as root:
             write(root / "docs/案件/02_打合せ/a.md", "password=Kintai2027!\n")
-            write(root / "docs/設計書/05-セキュリティ設計.md", "token：abc123XYZ789\n")
+            write(root / "docs/設計書/05-セキュリティ.md", "token：abc123XYZ789\n")
             rec = Recorder()
             check_skeleton.check_secrets(root, report=rec, design_only=True)
             self.assertEqual(len(rec.fails), 1)
-            self.assertIn("05-セキュリティ設計.md", rec.fails[0])
+            self.assertIn("05-セキュリティ.md", rec.fails[0])
 
 
 if __name__ == "__main__":

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""フェーズ（立ち上げ / 開発 / 運用）の読み書きと、フェーズ × 仕組みの厳しさの表の共有モジュール。
+"""フェーズ（Sketch / Build）の読み書きと、フェーズ × 仕組みの厳しさの表の共有モジュール。
 
 hook（design_docs_reminder.py・pickup_*・session_context.sh）とスクリプト（check_skeleton.py・
 docs_freshness.py・check_drops.py）が同じ表を同じ解釈で読むために置く。scripts/ 側からは
 `sys.path.insert(0, ROOT / ".claude/hooks")` で import する。標準ライブラリのみ。
 
 フェーズの正本: docs/プロジェクト概要.html の `<!-- BEGIN:phase -->`〜`<!-- END:phase -->` 内の
-最初の `data-phase="…"` 属性。属性が無い・3 値以外・読めないときは「立ち上げ」として扱う（止めない）。
-環境変数 CLAUDE_SKELETON_PHASE があればそれを優先する（テスト用。3 値以外は無視）。
+最初の `data-phase="…"` 属性。属性が無い・読めない・読み替えても分からないときは「Sketch」として扱う
+（止めない）。旧い値（立ち上げ・開発・運用）と大小文字違い（sketch・build）は ALIASES で読み替える。
+環境変数 CLAUDE_SKELETON_PHASE があればそれを優先する（テスト用。読み替えても分からない値は無視）。
 
 厳しさの表（STRICTNESS）はここが唯一の正本。文書に表を複製しない。人が見るときは `--table`。
 仕組みの側はフェーズ名で分岐せず、level(<キー>, read_phase(root)) の値だけを見る。
@@ -15,9 +16,10 @@ docs_freshness.py・check_drops.py）が同じ表を同じ解釈で読むため�
 使い方:
   python3 .claude/hooks/phase.py              フェーズ名を 1 行
   python3 .claude/hooks/phase.py --table      厳しさの表を Markdown で出す
-  python3 .claude/hooks/phase.py --set 開発   フェーズを切り替える（旧 → 新を 1 行。3 値以外は exit 2）
+  python3 .claude/hooks/phase.py --set Build  フェーズを切り替える（旧 → 新を 1 行。読めない値は exit 2）
   python3 .claude/hooks/phase.py --json       {"phase": …, "problem": …, "suggest": …}
-フェーズの切り替えはユーザーが決める。Claude は提案まで（update-overview スキル）。
+フェーズの切り替えは AI が判断して行う（確認は挟まない。update-overview スキル）。切り替えたら
+報告の中で 1 行伝える。
 """
 from __future__ import annotations
 
@@ -29,35 +31,55 @@ import sys
 
 sys.dont_write_bytecode = True
 
-PHASES = ("立ち上げ", "開発", "運用")
-DEFAULT_PHASE = "立ち上げ"
+PHASES = ("Sketch", "Build")
+DEFAULT_PHASE = "Sketch"
+# 旧い値の読み替え。大小文字違い（sketch・build）は normalize() が別途吸収する
+ALIASES = {"立ち上げ": "Sketch", "開発": "Build", "運用": "Build"}
 LEVELS = ("block", "warn", "info", "none")  # 止める / 警告 / 情報 / 何もしない
 LEVEL_JA = {"block": "止める", "warn": "警告", "info": "情報", "none": "何もしない"}
 OVERVIEW = "docs/プロジェクト概要.html"
 ENV_PHASE = "CLAUDE_SKELETON_PHASE"
 
 
-def _row(launch: str, dev: str, ops: str) -> dict[str, str]:
-    return {"立ち上げ": launch, "開発": dev, "運用": ops}
+def normalize(value: str | None) -> str | None:
+    """フェーズ名を正規化する（新値そのまま／旧い値／大小文字違いを吸収）。該当しなければ None。"""
+    if not value:
+        return None
+    v = value.strip()
+    if not v:
+        return None
+    if v in PHASES:
+        return v
+    if v in ALIASES:
+        return ALIASES[v]
+    low = v.lower()
+    for p in PHASES:
+        if low == p.lower():
+            return p
+    return None
+
+
+def _row(sketch: str, build: str) -> dict[str, str]:
+    return {"Sketch": sketch, "Build": build}
 
 
 # 仕組みキー → {フェーズ: レベル}。止めるのは「形」と「秘密」だけ。内容の空欄・未記入・未決の多さでは止めない
 STRICTNESS: dict[str, dict[str, str]] = {
-    "work_area_guard": _row("block", "block", "block"),
-    "secret_scan": _row("block", "block", "block"),
-    "skeleton_shape": _row("block", "block", "block"),
-    "design_docs_shape": _row("block", "block", "block"),
-    "harness_shape": _row("block", "block", "block"),
-    "harness_unlisted": _row("info", "warn", "warn"),
-    "design_docs_reminder": _row("info", "warn", "warn"),
-    "docs_unfilled": _row("info", "info", "warn"),
-    "docs_stale_days": _row("none", "warn", "warn"),
-    "docs_source_drift": _row("info", "warn", "warn"),
-    "pickup": _row("warn", "warn", "warn"),
-    "pickup_orphans": _row("info", "warn", "warn"),
-    "harness_candidates": _row("info", "info", "info"),
-    "global_leak": _row("info", "info", "info"),
-    "phase_suggest": _row("info", "info", "none"),
+    "work_area_guard": _row("block", "block"),
+    "secret_scan": _row("block", "block"),
+    "skeleton_shape": _row("block", "block"),
+    "design_docs_shape": _row("block", "block"),
+    "harness_shape": _row("block", "block"),
+    "harness_unlisted": _row("info", "warn"),
+    "design_docs_reminder": _row("info", "warn"),
+    "docs_unfilled": _row("info", "warn"),
+    "docs_stale_days": _row("none", "warn"),
+    "docs_source_drift": _row("info", "warn"),
+    "pickup": _row("warn", "warn"),
+    "pickup_orphans": _row("info", "warn"),
+    "harness_candidates": _row("info", "info"),
+    "global_leak": _row("info", "info"),
+    "phase_suggest": _row("info", "none"),
 }
 
 # --table 用の説明（表の中身は STRICTNESS だけが持つ）
@@ -110,7 +132,7 @@ def _read_block(root) -> tuple[str | None, str | None]:
 
 
 def _file_phase(root) -> tuple[str, str | None]:
-    """概要 HTML から (フェーズ, 問題)。環境変数は見ない。"""
+    """概要 HTML から (フェーズ, 問題)。環境変数は見ない。旧い値・大小文字違いは読み替えて返す。"""
     block, problem = _read_block(root)
     if block is None:
         return DEFAULT_PHASE, problem
@@ -118,16 +140,17 @@ def _file_phase(root) -> tuple[str, str | None]:
     if not m:
         return DEFAULT_PHASE, "属性なし"
     value = m.group(1).strip()
-    if value not in PHASES:
+    normalized = normalize(value)
+    if normalized is None:
         return DEFAULT_PHASE, f"不正な値: {value}"
-    return value, None
+    return normalized, None
 
 
 def read_phase(root) -> str:
     """フェーズ名。何が起きても例外を出さず、分からなければ DEFAULT_PHASE。"""
     try:
-        env = os.environ.get(ENV_PHASE, "").strip()
-        if env in PHASES:
+        env = normalize(os.environ.get(ENV_PHASE, ""))
+        if env is not None:
             return env
         return _file_phase(root)[0]
     except Exception:
@@ -145,18 +168,23 @@ def phase_status(root) -> tuple[str, str | None]:
 
 
 def level(mechanism: str, phase: str) -> str:
-    """仕組みのレベル（block / warn / info / none）。表に無いキー・フェーズは "none"（未知の仕組みで止めない）。"""
-    return STRICTNESS.get(mechanism, {}).get(phase, "none")
+    """仕組みのレベル（block / warn / info / none）。表に無いキー・フェーズは "none"（未知の仕組みで止めない）。
+    phase は旧い値・大小文字違いでもよい（読み替えて引く）。"""
+    canonical = normalize(phase) or phase
+    return STRICTNESS.get(mechanism, {}).get(canonical, "none")
 
 
 def set_phase(root, new: str) -> str:
     """data-phase 属性と .name の中身だけを書き換える。戻り値は旧フェーズ（属性が無かった・不正なら DEFAULT_PHASE）。
 
+    new は旧い値・大小文字違いでもよく、読み替えた新しい値（Sketch／Build）で書く。
     マーカー外・.word には触らない。属性が無ければ `<div class="phase"` に足す。
-    phase ブロックが無い・読めない・new が 3 値以外なら ValueError。改行コードは元のまま保つ。
+    phase ブロックが無い・読めない・new が読み替えても分からないなら ValueError。改行コードは元のまま保つ。
     """
-    if new not in PHASES:
+    normalized_new = normalize(new)
+    if normalized_new is None:
         raise ValueError(f"フェーズは {' / '.join(PHASES)} のどれか: {new!r}")
+    new = normalized_new
     path = _overview_path(root)
     try:
         with open(path, "rb") as f:
@@ -168,7 +196,8 @@ def set_phase(root, new: str) -> str:
         raise ValueError(f"{OVERVIEW} に <!-- BEGIN:phase --> 〜 <!-- END:phase --> が無い")
     block = m.group(1)
     a = _ATTR_RE.search(block)
-    old = a.group(1).strip() if a and a.group(1).strip() in PHASES else DEFAULT_PHASE
+    old = normalize(a.group(1).strip()) if a else None
+    old = old if old is not None else DEFAULT_PHASE
     if a:
         block = block[:a.start(1)] + new + block[a.end(1):]
     else:
@@ -210,16 +239,18 @@ def _source_commits(root) -> int | None:
 def suggest(root, phase: str) -> str | None:
     """フェーズ切り替えの提案文（SessionStart 用）。提案が無い・git が無い・判定できない → None。
 
-    機械で見るのは「立ち上げ期に、ソースの変更コミットが 1 件以上ある」だけ。
-    最初の実装タスクへの着手・本番リリースは Claude が会話中に気づいて提案する。
+    機械で見るのは「Sketch の間に、ソースの変更コミットが 1 件以上ある」だけ。切り替えは AI が判断して
+    行う（確認は挟まない）。関係者向けの資料・確認依頼を出し始めた／設計書（01 以外）を足した／実装や
+    設定変更を始めたと Claude が会話中に気づいたときも Build へ切り替えてよい。
     """
     try:
-        if level("phase_suggest", phase) == "none" or phase != "立ち上げ":
+        if level("phase_suggest", phase) == "none" or normalize(phase) != "Sketch":
             return None
         n = _source_commits(root)
         if not n:
             return None
-        return f"提案: 開発フェーズへの切り替え（ソースの変更 {n} 件。決めるのはユーザー、切り替えは update-overview スキル）"
+        return (f"Build の目安に当たる（ソースの変更 {n} 件）。AI が判断して "
+                f"python3 .claude/hooks/phase.py --set Build で切り替え、報告で 1 行伝える")
     except Exception:
         return None
 
@@ -246,7 +277,7 @@ def main(argv: list[str]) -> int:
     if "--set" in argv:
         i = argv.index("--set")
         new = argv[i + 1] if i + 1 < len(argv) else ""
-        if new not in PHASES:
+        if normalize(new) is None:
             print(f"エラー: フェーズは {' / '.join(PHASES)} のどれか（指定: {new!r}）", file=sys.stderr)
             return 2
         try:
@@ -254,7 +285,7 @@ def main(argv: list[str]) -> int:
         except ValueError as e:
             print(f"エラー: {e}", file=sys.stderr)
             return 2
-        print(f"フェーズ: {old} → {new}（{OVERVIEW}。表は python3 .claude/hooks/phase.py --table）")
+        print(f"フェーズ: {old} → {normalize(new)}（{OVERVIEW}。表は python3 .claude/hooks/phase.py --table）")
         return 0
     if "--json" in argv:
         phase, problem = phase_status(root)
