@@ -17,8 +17,12 @@ project-skeleton/
 ├── SETUP.md                  グローバル配備の手順(各マシンで 1 回)
 ├── CHANGELOG.md              版ごとの変更と「既存プロジェクトへの適用」
 ├── VERSION                   semver。生成物の CLAUDE.md 先頭に埋め込まれる
+├── docs/
+│   ├── プロダクト概要.html     人向けの 1 枚(何のためのものか・何が入っているか・機能一覧の要約)
+│   └── 機能一覧.md             全機能の詳細(いつ動くか・利用者の操作・担当ファイル)
 ├── scripts/
-│   ├── init.py               template → 案件フォルダを生成(--merge で既存へ適用)
+│   ├── init.py               template → 案件フォルダを生成(--merge で既存へ適用・新しい版への追従)
+│   ├── migrations.json       版ごとの定型の移行(move / json_add / replace。--merge が前回の版より後の分を流す)
 │   ├── check.py              スケルトン自身の検査(template の単体テスト・hook テストも回す)
 │   ├── collect_returns.py    案件で直したもののうち、スケルトンへ返す候補を集める(台帳の「返す」列・仕組みの差分)
 │   ├── tests/                init.py の単体テスト
@@ -29,11 +33,12 @@ project-skeleton/
     ├── 環境情報.md / 案件情報.md           (生成先では .gitignore 対象)
     ├── .claude/settings.json / rules/(3 本)
     │   ├── skills/                        work-placement / scratch / task / update-overview / update-env-info /
-    │   │                                  sync-design-docs / audit-design-docs / pickup / harness(9 本)
+    │   │                                  sync-design-docs / audit-design-docs / pickup / harness /
+    │   │                                  draft-from-existing(10 本)
     │   └── hooks/                         session_context(SessionStart)/ work_area_guard(PreToolUse)/
     │                                      design_docs_reminder(PostToolUse)/ pickup_cue(UserPromptSubmit)/
     │                                      pickup_check・work_log(Stop)+ phase.py・drops.py・pickup_state.py・
-    │                                      impact_map.py・machine_context.py・project_config.py + tests/skeleton/
+    │                                      impact_map.py・machine_context.py・project_config.py・skeleton_drift.py + tests/skeleton/
     ├── .work/                             作業領域(証跡・機密・一時・_bk)
     ├── scripts/check_skeleton.py          生成先の検査(--overview / --docs)
     ├── scripts/docs_freshness.py          設計書の鮮度(要確認と未記入)
@@ -70,8 +75,17 @@ python3 scripts/init.py <生成先パス or プロジェクト名> --name <表�
 ```
 
 - 第 1 引数にパス区切りが無ければ、このリポの**親ディレクトリ**直下に作る
-- `--merge`: 既存フォルダに無いファイルだけ追加。既存は触らず、template と内容が異なるものは differs として一覧。build.py は実行せず、実行ビットは今回作ったファイルにだけ付ける
-- `--dry-run`: 書き込み・git・build を一切せず、作成予定だけ出す
+- 生成先に記録 `.claude/skeleton.json`(版・スケルトンのコミット・生成時の値・入れたファイルの元の内容の sha)を書く
+- `--merge`: 既存フォルダに適用・新しい版へ追従する。記録があれば `--name` は省ける
+  - 無いファイルは追加。**手を入れていないファイルは新しい版にする**(前の中身は `.work/_bk/YYYYMMDD_skeleton-vX.Y.Z/`)
+  - 手を入れた仕組み(`.claude/`・`scripts/`・タスク管理の `.py`・`index.html`)と `CLAUDE.md` は `git merge-file` の 3-way で混ぜる。
+    概要 HTML は build.py の欄を外して混ぜる。衝突したもの・手を入れた内容のファイルは書かずに一覧にし、新しい版を
+    `.work/一時/YYYYMMDD_skeleton-update/` に置く。取り込んだら `--merge --resolved` で記録する
+  - template から無くなった仕組みは、手を入れていなければ `.work/_bk/` へ片付ける。案件が消したファイルは作り直さない
+  - 記録が無ければ CLAUDE.md 1 行目の刻印とスケルトンの git 履歴から元の内容を作り直す。どちらも無ければ差分の一覧だけ(従来どおり)
+  - `scripts/migrations.json` の定型の移行を前回の版より後の分だけ流し、CHANGELOG の「既存プロジェクトへの適用」を対象の版だけ出す
+  - build.py は実行せず、実行ビットは今回作ったファイルにだけ付ける
+- `--dry-run`: 書き込み・git・build を一切せず、作成予定と追従の分類だけ出す
 - 生成後に `build.py`(新規のときだけ) → `git init` + 初回コミット → `scripts/check_skeleton.py` を続けて実行する
 - 既存案件の形の違い(仕組みの固定の置き場・入れ子の別リポ)は、生成先の `.claude/project.json` に書く。テンプレのコードは書き換えない。表で書きにくい設計書追随の判定は差し込み口 `.claude/hooks/impact_map_local.py`(`sync-design-docs` スキル)
 
@@ -84,8 +98,9 @@ python3 <生成先>/scripts/check_skeleton.py     # 生成先(同じ形式。--o
 
 ## 生成されるプロジェクトの要点
 
-- `CLAUDE.md` 先頭に `<!-- project-skeleton vX.Y.Z generated YYYY-MM-DD -->`。どの版から作ったかが分かる
-- `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task / sync-design-docs / audit-design-docs / pickup / harness)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード・設計書追随・依頼文の手がかり・区切りの拾い)
+- `CLAUDE.md` 先頭に `<!-- project-skeleton vX.Y.Z generated YYYY-MM-DD -->`。どの版から作ったかが分かる(追従しても生成時の版のまま。今の版は `.claude/skeleton.json`)
+- スケルトンに新しい版が出ると、SessionStart に「スケルトン: vX → vY」が出て、Claude が区切りで更新を提案する(`skeleton_drift.py`)
+- `.claude/rules/`(作業領域・文書管理・機密)、`.claude/skills/`(work-placement / scratch / update-overview / update-env-info / task / sync-design-docs / audit-design-docs / pickup / harness / draft-from-existing)、`.claude/hooks/`(セッション文脈の注入・作業領域ガード・設計書追随と保存の促し・依頼文の手がかり・区切りの拾い・スケルトンとのずれ)
 - フェーズ(Sketch / Build)で厳しさが変わる。表は `python3 .claude/hooks/phase.py --table`、切り替えは `--set`(AI が判断して切り替え、確認は挟まない)。Sketch の間は拾うだけ
 - 作業中に出た決定・未決・あとでやることは「反映済・タスク・未決」のどれかに落とす(打合せ記録の各行に落ち先、未決の正本は課題 md)。ハーネスは `docs/ハーネス台帳.md` に候補として書き、承認後に定義する
 - skill に `allowed-tools` を書かない(未信頼のワークスペースで起動が拒否されるため。`check.py` が見る)
@@ -107,8 +122,11 @@ python3 <生成先>/scripts/check_skeleton.py     # 生成先(同じ形式。--o
 
 1. `template/` を直す(生成先のコピーを直しても他には反映されない)
 2. `python3 scripts/check.py` で fail=0 を確認
-3. `VERSION` を上げ、`CHANGELOG.md` の先頭に版・日付・変更・**既存プロジェクトへの適用**を書く
-4. 既存プロジェクトへは `python3 scripts/init.py <既存パス> --name "<表示名>" --merge` で追加分を配り、differs は手で取り込む
+3. `VERSION` を上げ、`CHANGELOG.md` の先頭に版・日付・変更・**既存プロジェクトへの適用**を書く。
+   どの案件でも同じ結果になる定型の手順(移動・`settings.json` への追加・文字列の置き換え)は `scripts/migrations.json` に書き、
+   判断が要る手順だけを CHANGELOG に書く(すべては自動化しない)
+4. 既存プロジェクトへは `python3 scripts/init.py <既存パス> --merge` で追従する(各案件の SessionStart が新しい版を知らせる)。
+   衝突・内容の一覧は案件のセッションで取り込み、`--merge --resolved` で記録する
 5. 案件で直したものを取り込むときは `python3 scripts/collect_returns.py <案件パス…>` で候補を集め、template/ に入れて CHANGELOG に還元元を書く
 6. リンク配備なら各マシンは自動で新版を見る。`--copy` で配備したマシンは `install-global --copy --force` で更新
 

@@ -27,7 +27,7 @@ KNOWN_PLACEHOLDERS = {
 
 ROOT_REQUIRED = [
     "SKILL.md", "README.md", "SETUP.md", "CHANGELOG.md", "VERSION",
-    "scripts/init.py", "scripts/check.py",
+    "scripts/init.py", "scripts/check.py", "scripts/migrations.json",
     "scripts/install-global.sh", "scripts/install-global.ps1",
 ]
 
@@ -180,6 +180,48 @@ def iter_template_text_files():
                 yield p
 
 
+MIGRATION_FIELDS = {"move": ("from", "to"), "json_add": ("file", "path"), "replace": ("file", "old", "new")}
+
+
+def check_migrations(version: str) -> None:
+    path = ROOT / "scripts/migrations.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        ng(f"scripts/migrations.json を読めない: {e}")
+        return
+    items = data.get("migrations") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        ng("migrations.json の migrations がリストでない")
+        return
+    vt = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+    bad: list[str] = []
+    for m in items:
+        v = m.get("version") if isinstance(m, dict) else None
+        if not isinstance(v, str) or not re.fullmatch(r"\d+\.\d+\.\d+", v):
+            bad.append(f"版が semver でない: {v!r}")
+            continue
+        if version and re.fullmatch(r"\d+\.\d+\.\d+", version) and vt(v) > vt(version):
+            bad.append(f"v{v} が VERSION {version} を超える")
+        ops = m.get("ops") if isinstance(m, dict) else None
+        for op in ops if isinstance(ops, list) else [None]:
+            kind = op.get("op") if isinstance(op, dict) else None
+            if kind not in MIGRATION_FIELDS:
+                bad.append(f"v{v}: 知らない操作 {kind!r}（使えるのは {' / '.join(MIGRATION_FIELDS)}）")
+                continue
+            for f in MIGRATION_FIELDS[kind]:
+                if f not in op:
+                    bad.append(f"v{v} {kind}: {f} が無い")
+            for f in ("from", "to", "file"):
+                p = op.get(f)
+                if p is not None and (not isinstance(p, str) or p.startswith("/") or ":" in p or ".." in p.split("/")):
+                    bad.append(f"v{v} {kind}: {f} はルート相対（{p!r}）")
+    for b in bad:
+        ng(f"migrations.json: {b}")
+    if not bad:
+        ok(f"migrations.json の形（{len(items)} 版）")
+
+
 def walk_json_strings(obj):
     if isinstance(obj, str):
         yield obj
@@ -223,6 +265,9 @@ def main() -> int:
               f"CHANGELOG.md の最初の見出しが VERSION と一致: {m.group(1) if m else None} vs {version}")
     except OSError:
         ng("CHANGELOG.md を読めない")
+
+    # 3b. migrations.json（版ごとの定型の移行）の形: 知らない操作・VERSION を超える版・パスが外へ出るものが無い
+    check_migrations(version)
 
     # 4. template のプレースホルダが既知 6 種のみ
     unknown: dict[str, set[str]] = {}

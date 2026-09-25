@@ -1,0 +1,62 @@
+{
+  "_説明": "版ごとの定型の移行。init.py --merge が、前回の版より後・今の版以下の分を版の順に流す（前回の版が不明なら全部。どの操作も冪等）。操作は move / json_add / replace の 3 つだけ。案件ごとに判断が要る手順はここに書かず、CHANGELOG.md の「既存プロジェクトへの適用」に文章で書く（init.py が抜き出して出す）",
+  "_操作": {
+    "move": "from があり to が無いときだけ移す",
+    "json_add": "file の JSON の path（キーと添字の配列）の配列に value を足す。unless の文字列がファイルに既にあれば何もしない。最後のキーが無ければ空の配列を作る",
+    "replace": "file の中に 1 回だけ現れる old を new に置き換える（無い・複数なら何もしない）"
+  },
+  "migrations": [
+    {
+      "version": "1.3.0",
+      "ops": [
+        {
+          "op": "replace",
+          "file": ".claude/settings.json",
+          "old": "\"Bash(bash .claude/hooks/tests/run-all.sh)\"",
+          "new": "\"Bash(bash .claude/hooks/tests/skeleton/run-all.sh)\""
+        }
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "ops": [
+        {
+          "op": "json_add",
+          "file": ".claude/settings.json",
+          "path": ["hooks", "Stop", 0, "hooks"],
+          "value": {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/work_log.sh\"",
+            "timeout": 20
+          },
+          "unless": "work_log.sh"
+        }
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "ops": [
+        {
+          "op": "json_add",
+          "file": ".claude/project.json",
+          "path": ["save_cues"],
+          "value": {
+            "glob": [".claude/rules/**", ".claude/skills/**", ".claude/hooks/**"],
+            "cue": "仕組みを直した。スケルトンから入ったものを直したなら、スケルトンにも返すかを docs/ハーネス台帳.md の「返す」列に 1 行（harness スキル）"
+          },
+          "unless": ".claude/rules/**"
+        },
+        {
+          "op": "json_add",
+          "file": ".claude/project.json",
+          "path": ["save_cues"],
+          "value": {
+            "glob": "環境情報.md",
+            "cue": "環境情報を直した。値は docs/ に転記しない。構成が変わったなら 02-構成 を sync-design-docs で直す"
+          },
+          "unless": "\"環境情報.md\""
+        }
+      ]
+    }
+  ]
+}

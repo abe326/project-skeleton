@@ -198,6 +198,20 @@ def issue_problems(text: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# タスクの完了条件（警告だけ。閉じるのは止めない）
+# ---------------------------------------------------------------------------
+
+def unchecked_conditions(text: str) -> list[str]:
+    """`## 完了条件…` 節に残っている `- [ ]` の行（HTML コメントの中は見ない）。番号付きの旧い形は見ない。"""
+    body = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+    m = re.search(r"^##\s+完了条件[^\n]*$(.*?)(?=^##\s|\Z)", body, flags=re.M | re.S)
+    if not m:
+        return []
+    return [l.strip()[len("- [ ]"):].strip() for l in m.group(1).splitlines()
+            if re.match(r"^\s*[-*]\s+\[\s\]", l)]
+
+
+# ---------------------------------------------------------------------------
 # クローズ / 再オープン
 # ---------------------------------------------------------------------------
 
@@ -217,6 +231,14 @@ def do_close(id_: str, today: str) -> None:
                 print(f"  - {p}", file=sys.stderr)
             print(DECISION_EXAMPLE, file=sys.stderr)
             sys.exit(1)
+    else:
+        left = unchecked_conditions(text)
+        if left:
+            print(f"警告: {id_} の完了条件にチェックの無いものがある（閉じるのは止めない）:", file=sys.stderr)
+            for c in left:
+                print(f"  - [ ] {c}", file=sys.stderr)
+            print("  揃っているなら [x] に、該当しないなら `- [x] 該当なし: 理由` に直す。"
+                  "揃わないまま閉じるなら、理由と引き継ぎ先を本文に 1 行", file=sys.stderr)
     new_text = rewrite_md(text, {
         "status":  "完了",
         "closed":  today,

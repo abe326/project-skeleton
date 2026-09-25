@@ -4,6 +4,8 @@
 stdin の JSON から tool_input.file_path を読み、次の順に処理する。ブロックはしない（常に exit 0）。
 
   1. ルート内なら、触ったパスを pickup_state に記録する（Stop hook pickup_check.py の材料。.work/ も記録）
+  1b. .claude/project.json の save_cues の glob に当たれば、ファイルと cue ごとにセッション 1 回「[保存の促し] <cue>」
+     （置き場に関係なく見る。下の 2・3 の出力と一緒に返す）
   2. 打合せ記録（docs/案件/02_打合せ/*.md）: フェーズに関係なく、ファイルごとにセッション 1 回
      「[落ち先] … 各行に落ち先 …」を返す（影響マップは引かない）
   3. それ以外は docs/設計書/README.md の影響マップ（解釈は impact_map.py。差し込み口
@@ -65,6 +67,17 @@ def record_touch(session_id, rel: str) -> None:
         ps.append(session_id, "touch", rel)
     except Exception:
         pass
+
+
+def save_cues(rel: str, root: str) -> list[str]:
+    """project.json の save_cues のうち rel に当たるものの cue。読めなければ空。"""
+    try:
+        import project_config  # noqa: WPS433
+        from impact_map import glob_matches  # noqa: WPS433
+        return [c["cue"] for c in project_config.load(root)["save_cues"]
+                if any(glob_matches(rel, g) for g in c["globs"])]
+    except Exception:
+        return []
 
 
 def current_level(root: str) -> tuple[str, str]:
@@ -138,15 +151,22 @@ def main() -> int:
         session_id = data.get("session_id")
         record_touch(session_id, rel)
 
+        # 保存を起点にした促し（project.json の save_cues）: 置き場に関係なく、ファイルごとにセッション 1 回
+        cue_notes = [f"[保存の促し] {c}" for c in save_cues(rel, root)
+                     if not already_seen(session_id, f"cue:{rel}:{c}")]
+
         # 打合せ記録: フェーズより先に分岐。影響マップは引かない
         if is_meeting(rel):
-            if already_seen(session_id, f"meeting:{rel}"):
-                return 0
-            emit(f"[落ち先] {rel}: 決定・未決・宿題の各行に落ち先（→ 反映済: 01 §3 / → APP-03 / → 未決 QA-01）。"
-                 "ID は起票してから書く。区切りで pickup スキル")
+            if not already_seen(session_id, f"meeting:{rel}"):
+                cue_notes.append(f"[落ち先] {rel}: 決定・未決・宿題の各行に落ち先（→ 反映済: 01 §3 / → APP-03 / → 未決 QA-01）。"
+                                 "ID は起票してから書く。区切りで pickup スキル")
+            if cue_notes:
+                emit("\n".join(cue_notes))
             return 0
 
         if rel.startswith(SKIP_PREFIXES):
+            if cue_notes:
+                emit("\n".join(cue_notes))
             return 0
         rows = match_rows(rel, load_impact_map(os.path.join(root, README)))
         targets: list[str] = []
@@ -156,7 +176,7 @@ def main() -> int:
         candidates = [t for t in resolve_targets(targets, root) if t != rel]
 
         phase, lvl = current_level(root)
-        notes: list[str] = []
+        notes: list[str] = cue_notes
         # 実装・設定の変更を始めた（Sketch の間だけ、セッション 1 回）: Build の目安。切り替えは AI が判断する
         if is_source(rel) and suggest_level(phase) != "none" and not already_seen(session_id, f"build-nudge:{phase}"):
             notes.append(f"[フェーズ] 実装・設定の変更を始めた（{rel}）。Build の目安に当たる。AI が判断して "

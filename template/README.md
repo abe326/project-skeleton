@@ -18,6 +18,8 @@
 | 区切りの拾い直しを止める | 環境変数 `CLAUDE_PICKUP=off` |
 | 置き場のガードに、案件で決まった場所を通させる | `.claude/project.json` の `work_area_allow` |
 | 入れ子の別リポを扱う | `.claude/project.json` の `nested_repos` |
+| あるファイルを保存したら、決まったことを AI に促させる | `.claude/project.json` の `save_cues`（`glob` と `cue` の組を足す） |
+| スケルトンの新しい版に追従する | SessionStart に「スケルトン: vX → vY」が出たら AI が提案する。了承すれば new-project スキルが `--merge` で更新（手を入れていないファイルは自動、手を入れたものは混ぜるか一覧に） |
 | 設計書を足す | `python3 scripts/add_doc.py <番号>`（一覧は `--list`） |
 | skill・hook・ルール・許可を足す・外す | `harness` スキル（台帳に候補 → 承認して定義。外すときも同じ） |
 | マシン側の plugin を止める | `.claude/settings.json` の `enabledPlugins`（project-skeleton の `SETUP.md` §8） |

@@ -70,6 +70,9 @@ h2{font-size:clamp(23px,3.4vw,29px);font-weight:700}
 .tag{display:inline-block;font-size:11.5px;letter-spacing:.06em;font-weight:700;padding:1px 8px;border-radius:4px;margin-right:6px;vertical-align:2px}
 .tag.m{background:var(--machine-soft);color:var(--machine)}
 .tag.h{background:var(--accent-soft);color:var(--accent)}
+.tag.n{background:var(--accent);color:var(--surface)}
+td.op{white-space:nowrap;font-weight:700}
+td.op.free{color:var(--accent)}
 
 /* rule + mechanisms */
 .rule{border-left:4px solid var(--accent);padding:12px 16px;background:var(--surface);font-family:var(--f-display);font-weight:700;font-size:16.5px;line-height:1.6;border-radius:0 8px 8px 0}
@@ -151,7 +154,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
 
 <header>
   <div class="eyebrow">
-    <span class="chip v">v1.4.1</span>
+    <span class="chip v">v1.5.0</span>
     <span class="chip">Claude Code 専用</span>
     <span class="chip">python3 標準ライブラリのみ</span>
   </div>
@@ -161,7 +164,8 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="cmd"><span class="c"># Claude Code に「○○のプロジェクトを作って」と頼むと、new-project skill がこれを実行する</span>
 <span class="p">$</span> python3 scripts/init.py 新案件 --name "新案件" --slug new-case
 <span class="c">  → タスク一覧の初期化 → git init + 初回コミット → 構成の検査まで一気に通す</span>
-<span class="c"># 既存のフォルダには --merge。足りないファイルだけを足し、既存には触れない</span></div>
+<span class="c"># 既存のフォルダには --merge。足りないファイルを足し、手を入れていないものは新しい版にする</span>
+<span class="c"># 新しい版が出ると、作業フォルダを開いたときに Claude が気づいて更新を提案する</span></div>
 </header>
 
 <section>
@@ -228,7 +232,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
     <div><b>置き場を合わせる</b><span>既存の仕組みが使う決まった場所は <code>.claude/project.json</code> に書けば、ガードが通す。コードは書き換えない。</span></div>
     <div><b>仕組みを足す・外す</b><span><code>harness</code> スキルで候補を台帳に書き、承認して定義する。拾い直しの hook は <code>CLAUDE_PICKUP=off</code> で止められる。</span></div>
     <div><b>文書は育てる</b><span>設計書は概要 1 本で始める。ほかは要るときに候補を出し、承認を得て 1 本ずつ足す。未記入は止めない。</span></div>
-    <div><b>既存のフォルダにも</b><span><code>--merge</code> は足りないファイルだけを足し、既存には触れない。違いは一覧で見せる。</span></div>
+    <div><b>既存のフォルダにも</b><span><code>--merge</code> は足りないファイルを足し、手を入れていないものだけを新しい版にする。手を入れたものは混ぜるか、一覧で見せる。</span></div>
     <div><b>直したものを返す</b><span>決まりを案件に合わせて変えたら台帳に 1 行。ほかでも効くものは「返す」列に書けば、スケルトン側で集めて取り込める。</span></div>
   </div>
 </section>
@@ -243,6 +247,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
       <h3>現在地を受け取る</h3>
       <ul>
         <li class="m"><b>session_context</b>フェーズ・open のタスク・最近の出来事の件数・文書の要確認・マシン側の混入を 8 行以内で渡す</li>
+        <li class="m"><b>skeleton_drift</b>スケルトンに新しい版が出ていたら知らせ、Claude が区切りで更新を提案する</li>
         <li class="h"><b>CLAUDE.md</b>作業の種類に応じて読む文書を絞る</li>
       </ul>
     </div>
@@ -262,7 +267,7 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
         <li class="h"><b>pickup</b>決まったこと・未決・あとでやることを、反映済・タスク・課題のどれかへ</li>
         <li class="m"><b>pickup_check</b>落ち先の無いものがあれば、1 回だけ拾い直させる</li>
         <li class="m"><b>work_log</b>作業ログを正本から作り直す（直近 14 日と月ごと）</li>
-        <li class="m"><b>design_docs_reminder</b>ファイルを変えたら、一緒に直す文書の候補を示す</li>
+        <li class="m"><b>design_docs_reminder</b>ファイルを変えたら、一緒に直す文書の候補と、案件で決めた「保存したらすること」を示す</li>
       </ul>
     </div>
     <div class="step">
@@ -277,18 +282,45 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
 </section>
 
 <section>
+  <div class="sec-label">機能一覧</div>
+  <h2>指示しなくても働くものが大半</h2>
+  <p class="body">AI に細かく指示できなくても使えることを目指しています。「利用者の操作」が「不要」のものは、何も言わなくても hook か Claude が自分で動きます。<span class="tag n">新</span>は v1.5.0 で入れたものです。全機能の詳細（いつ動くか・担当ファイル）はリポジトリの <code>docs/機能一覧.md</code> にあります。</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>区分</th><th>機能</th><th>利用者の操作</th></tr></thead>
+      <tbody>
+        <tr><td class="scene">生成</td><td>作業フォルダを 1 コマンドで作る。一覧の初期化・git・検査まで通す</td><td class="op">名前を伝える</td></tr>
+        <tr><td class="scene">追従</td><td><span class="tag n">新</span>スケルトンに新しい版が出たら、開いたときに知らせて更新を提案する</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">追従</td><td><span class="tag n">新</span>手を入れていないファイルは自動で新しい版に。手を入れた仕組みは変更を残して混ぜる。前の中身は退避</td><td class="op">「はい」と答える</td></tr>
+        <tr><td class="scene">追従</td><td><span class="tag n">新</span>版ごとの定型の移行は自動。判断が要る手順だけ Claude が読んで進める</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">追従</td><td><span class="tag n">新</span>既存フォルダに入れたら、中の資料を読んで概要・現在地などの下書きを作る</td><td class="op">下書きを直す</td></tr>
+        <tr><td class="scene">タスク</td><td>起票・完了・一覧。ID は自動、課題は決定と落ち先が無ければ閉じない</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">タスク</td><td><span class="tag n">新</span>完了条件のチェック漏れを、閉じるときに知らせる</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">記録</td><td>区切りで決まったこと・未決・あとでやることを拾って落とし、作業ログを作る</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">設計書</td><td>変更に合わせて直す文書の候補と鮮度を知らせる。足す文書は候補を出す</td><td class="op">足すか答える</td></tr>
+        <tr><td class="scene">置き場</td><td>決めた置き場の外への書き込みと、秘密の転記を止める</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">現在地</td><td>開いたときにフェーズ・タスク・文書の状況を Claude に渡す。フェーズは Claude が切り替える</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">ハーネス</td><td>繰り返しや「しないで」を候補として台帳に書く。定義は承認後</td><td class="op">承認する</td></tr>
+        <tr><td class="scene">ハーネス</td><td><span class="tag n">新</span>あるファイルを保存したら決まったことを促す（案件で 1 組ずつ足せる）</td><td class="op free">不要</td></tr>
+        <tr><td class="scene">検査</td><td>作業フォルダとスケルトン自身の検査・テスト。版の遅れは知らせるだけ</td><td class="op free">不要</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
   <div class="sec-label">生成されるもの</div>
   <h2>作業フォルダの中身</h2>
   <div class="gen">
     <div class="box"><div class="path">CLAUDE.md ＋ .claude/rules</div><p>守ること・セッション開始時の手順・読む文書の表。rules は作業領域・文書管理・秘密の 3 本。</p></div>
-    <div class="box"><div class="path">.claude/skills（9 本）</div><p>work-placement ／ scratch ／ task ／ pickup ／ harness ／ update-overview ／ update-env-info ／ sync-design-docs ／ audit-design-docs</p></div>
-    <div class="box"><div class="path">.claude/hooks（6 本）</div><p>開始時の現在地、置き場のガード、変更時の文書の候補、依頼文の手がかりの記録、区切りでの拾い直しと作業ログ。テスト付き。</p></div>
+    <div class="box"><div class="path">.claude/skills（10 本）</div><p>work-placement ／ scratch ／ task ／ pickup ／ harness ／ update-overview ／ update-env-info ／ sync-design-docs ／ audit-design-docs ／ draft-from-existing</p></div>
+    <div class="box"><div class="path">.claude/hooks（6 本）</div><p>開始時の現在地とスケルトンの版、置き場のガード、変更時の文書の候補と保存の促し、依頼文の手がかりの記録、区切りでの拾い直しと作業ログ。テスト付き。</p></div>
     <div class="box"><div class="path">docs/案件/</div><p>タスクと課題（決まったことの正本も課題）、打合せ記録、相手に確認したいこと、作業ログ（生成物）。</p></div>
     <div class="box"><div class="path">docs/プロジェクト概要.html</div><p>目的・思想・現在地・これからの 1 枚資料。タスクの件数や決めてほしいことは自動で反映。</p></div>
     <div class="box"><div class="path">docs/ハーネス台帳.md</div><p>AI への指示の候補と、承認して定義したものの一覧。</p></div>
     <div class="box"><div class="path">docs/設計書</div><p>最初は 01 概要だけ。02〜09 はテンプレートから 1 本ずつ足す。長い理由の記録（decisions）と手順書（runbook）。</p></div>
     <div class="box"><div class="path">.work/ ・ 環境情報.md</div><p>Git 管理外。作業領域（証跡・機密・一時・退避）と、URL・アカウントなど実値の正本。</p></div>
-    <div class="box"><div class="path">scripts/ ・ .claude/project.json</div><p>構成・落ち先・文書の鮮度の検査。案件ごとの違い（決まった置き場・入れ子のリポ）は project.json に書く。</p></div>
+    <div class="box"><div class="path">scripts/ ・ .claude/project.json ・ skeleton.json</div><p>構成・落ち先・文書の鮮度の検査。案件ごとの違い（決まった置き場・入れ子のリポ・保存の促し）は project.json に書く。skeleton.json はどの版を入れたかの記録。</p></div>
   </div>
 </section>
 
@@ -318,23 +350,24 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
   <div class="sec-label">検査で自己保証する</div>
   <h2>スケルトン自身も、生成物も、検査が通ることを確かめている</h2>
   <div class="checks">
-    <div class="ck"><div class="n">206<small>fail 0</small></div><div class="l">スケルトン自身の検査項目。hook と単体のテスト 286 件・スケルトン側のテスト 24 件を含む</div></div>
-    <div class="ck"><div class="n">234<small>fail 0</small></div><div class="l">生成した作業フォルダの検査項目。文書・落ち先・秘密・ハーネス・フェーズ</div></div>
-    <div class="ck"><div class="n">2<small>既存に適用</small></div><div class="l">既存の案件 2 つの写しに <code>--merge</code> を当て、既存のファイルとテストを壊さないことを確かめた</div></div>
+    <div class="ck"><div class="n">212<small>fail 0</small></div><div class="l">スケルトン自身の検査項目。hook と単体のテスト 297 件・スケルトン側のテスト 41 件を含む</div></div>
+    <div class="ck"><div class="n">239<small>fail 0</small></div><div class="l">生成した作業フォルダの検査項目。文書・落ち先・秘密・ハーネス・フェーズ・記録とずれ</div></div>
+    <div class="ck"><div class="n">14<small>自動で更新</small></div><div class="l">v1.4.1 で作った案件を v1.5.0 に追従させ、手を入れていない 14 件を自動で更新、案件の変更 4 件はそのまま残した</div></div>
   </div>
-  <p class="body" style="font-size:13.5px">数値は v1.4.1 の検証の結果です。本物の Claude Code でも、決定の起票・文書を足す候補・Build への切り替えを確かめました。</p>
+  <p class="body" style="font-size:13.5px">数値は v1.5.0 の検証の結果です。追従は、版を上げたスケルトンの写しで「更新・混ぜる・衝突・片付け・作り直さない・移行・刻印からの後付け・git 無しの縮退」をテストで確かめています。</p>
 </section>
 
 <section>
-  <div class="sec-label">v1.4.0 で入れたもの</div>
-  <h2>業務を選ばない形へ</h2>
+  <div class="sec-label">v1.5.0 で入れたもの</div>
+  <h2>指示しなくても追従し、揃う</h2>
+  <p class="body">似たツール 23 件（テンプレート同期・仕様駆動・AI 向けスターターなど）を調べ、AI に明示的に指示できない人でも、何も言わずに働くものを選んで入れました。</p>
   <div class="mech">
-    <div><b>Sketch／Build</b><span>フェーズを 2 段に。段階の名前ではなく「AI がどこまで口を出すか」。切り替えは AI が判断する。</span></div>
-    <div><b>文書を育てる</b><span>概要 1 本で始め、テンプレートから 1 本ずつ足す。名前も業務を選ばないものにした。</span></div>
-    <div><b>記録の正本は 1 か所</b><span>決まったことは課題に書き、ほかからは ID で指す。AI が常に読むのは open だけ。</span></div>
-    <div><b>作業ログ</b><span>出来事の時系列を正本から生成。直近 14 日・月ごとのアーカイブ・索引。1 行 1 件で本文は写さない。</span></div>
-    <div><b>直したものを返す</b><span>台帳の「返す」列と、スケルトン側で集めるスクリプト。</span></div>
-    <div><b>決まりは初期値</b><span>変え方・外し方の一覧を、CLAUDE.md と README の冒頭に置いた。</span></div>
+    <div><b>記録とずれの検知</b><span>どの版を入れたかを作業フォルダに残す。新しい版が出たら、開いたときに Claude が気づいて 1 行で提案する。</span></div>
+    <div><b>自動で追従</b><span>手を入れていないファイルは新しい版に。手を入れた仕組みは変更を残して混ぜ、衝突したものだけ相談する。</span></div>
+    <div><b>移行は一部だけ自動</b><span>どこでも同じ結果になる手順だけを自動にし、判断が要る手順は Claude が読んで案件に合わせる。</span></div>
+    <div><b>既存の資料から下書き</b><span>既存フォルダに入れたら、中の資料を読んで概要・現在地・案件情報の下書きを作る。直すのは誤りだけ。</span></div>
+    <div><b>完了条件の知らせ</b><span>タスクの完了条件をチェックリストに。漏れがあれば閉じるときに知らせる（止めない）。</span></div>
+    <div><b>保存の促し</b><span>あるファイルを保存したら決まったことを促す。案件で 1 組ずつ足せ、コードは書き換えない。</span></div>
   </div>
 </section>
 
@@ -347,12 +380,13 @@ footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--line);font-si
     <div class="it done"><div class="d">2026-09-24 ／ v1.2.0</div><h3>進めながら揃い、何も落とさない</h3><p>フェーズ、落ち先と課題への一本化、区切りで拾う hook、ハーネスの台帳。</p></div>
     <div class="it done"><div class="d">2026-09-24 ／ v1.3.0</div><h3>既存の案件に入れられる</h3><p>案件ごとの違いを <code>.claude/project.json</code> と差し込み口で受け、テンプレのコードは書き換えずに済むようにした。</p></div>
     <div class="it done"><div class="d">2026-09-24 ／ v1.4.0</div><h3>業務を選ばない形へ</h3><p>Sketch／Build、文書を育てる、記録の正本を 1 か所に、作業ログ、直したものを返す道。</p></div>
-    <div class="it"><div class="d">次</div><h3>既存の案件への適用</h3><p>各案件のセッションで、<code>--merge</code> と CHANGELOG の「既存プロジェクトへの適用」に沿って入れる。</p></div>
+    <div class="it done"><div class="d">2026-09-26 ／ v1.5.0</div><h3>指示しなくても追従し、揃う</h3><p>記録とずれの検知、自動の追従と 3-way merge、移行の一部自動化、既存の資料からの下書き、完了条件の知らせ、保存の促し。</p></div>
+    <div class="it"><div class="d">次</div><h3>既存の案件への適用</h3><p>各案件で一度 <code>--merge</code> を通して記録を作る。以後は開いたときの知らせと提案で追従する。</p></div>
   </div>
 </section>
 
 <footer>
-  <span>project-skeleton v1.4.1</span>
+  <span>project-skeleton v1.5.0</span>
   <span>正本はリポジトリの docs/プロダクト概要.html</span>
 </footer>
 

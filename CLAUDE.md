@@ -1,7 +1,7 @@
 # project-skeleton 開発ガイド
 
 このリポはスケルトンの正本で、リポのルート自体がグローバル skill `new-project` になる(`SKILL.md`)。
-生成元は `template/`、生成器は `scripts/init.py`。使い方・構成は `README.md`、配備は `SETUP.md`、版の履歴は `CHANGELOG.md`。
+生成元は `template/`、生成器は `scripts/init.py`(生成先に記録 `.claude/skeleton.json` を書き、`--merge` で新しい版に追従させる)。使い方・構成は `README.md`、配備は `SETUP.md`、版の履歴は `CHANGELOG.md`。
 
 ## 作業の前に
 
@@ -13,7 +13,7 @@
 1. `template/` を直す(生成先のコピーを直しても他の案件には届かない)
 2. `python3 scripts/check.py` → `fail=0`(template の単体テスト・hook テスト・init のテストも回る)
 3. 生成して確かめる: `python3 scripts/init.py <作業用の一時フォルダ>/<名前> --name 検証 --slug x` → 生成先で `python3 scripts/check_skeleton.py`
-4. 版を上げるときは `VERSION` と `CHANGELOG.md`(「既存プロジェクトへの適用」を必ず書く)
+4. 版を上げるときは `VERSION` と `CHANGELOG.md`(「既存プロジェクトへの適用」を必ず書く)。どの案件でも同じ結果になる定型の手順は `scripts/migrations.json`(move / json_add / replace)に書き、判断が要る手順だけを CHANGELOG に書く(すべては自動化しない)
 5. commit → push(main)
 
 ## 守ること

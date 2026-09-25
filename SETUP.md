@@ -37,6 +37,9 @@ bash scripts/install-global.sh          # ~/.claude/skills/new-project → こ�
 - 既に同じ先へのリンクがあれば `OK 設定済み` と出て終わる
 - 別の先を指している・ディレクトリがある場合は警告して止まる。置き換えるなら `--force`
 - リンクが使えない環境(一部の共有ストレージ等)は `--copy` でコピー配備。`INSTALLED-AS-COPY.txt` が置かれ、正本を更新したら `--copy --force` で配り直す
+  - コピーには `.git` が無いので、`--merge` の追従は sha だけで判断する(手を入れていないファイルは更新、手を入れた仕組みは 3-way で混ぜずに衝突として一覧)
+- 生成した案件の SessionStart は `~/.claude/skills/new-project/VERSION` を読み、新しい版があれば「スケルトン: vX → vY」を出す。
+  別の場所に置いたスケルトンを見せたいときは、環境変数 `PROJECT_SKELETON_DIR` にそのフォルダを入れる
 
 ## 3. Windows(PowerShell)
 

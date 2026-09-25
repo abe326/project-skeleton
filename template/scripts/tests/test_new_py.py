@@ -137,6 +137,37 @@ class NewPy(unittest.TestCase):
             self.assertEqual(c.returncode, 1)
             self.assertTrue(path.is_file())
 
+    def test_task_conditions_warn_but_close(self):
+        """タスクの完了条件に [ ] が残っていれば警告して閉じる。全部 [x] なら警告しない。"""
+        with TempProject(COPY) as root:
+            r = self.run_new(root, "運用", "バックアップを設定する")
+            self.assertEqual(r.returncode, 0, r.stderr)
+            path = root / TM / "open/OPS-01_バックアップを設定する.md"
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(text.count("- [ ] "), 3)
+            c = run_py(root / TM / "close.py", "OPS-01", cwd=root)
+            self.assertEqual(c.returncode, 0, c.stderr)
+            self.assertIn("完了条件にチェックの無いもの", c.stderr)
+            self.assertIn("- [ ] 対象環境へ適用済み", c.stderr)
+            self.assertTrue((root / TM / "closed/OPS-01_バックアップを設定する.md").is_file())
+
+            r = self.run_new(root, "運用", "手順書を直す")
+            path = root / TM / "open/OPS-02_手順書を直す.md"
+            path.write_text(path.read_text(encoding="utf-8").replace("- [ ] ", "- [x] "), encoding="utf-8")
+            c = run_py(root / TM / "close.py", "OPS-02", cwd=root)
+            self.assertEqual(c.returncode, 0, c.stderr)
+            self.assertNotIn("完了条件にチェックの無いもの", c.stderr)
+
+    def test_old_numbered_conditions_not_warned(self):
+        """番号付きの旧い完了条件（v1.4 以前に起票したタスク）は見ない。"""
+        with TempProject(COPY) as root:
+            write(root / TM / "open/OPS-01_旧.md",
+                  "---\nid: OPS-01\ntitle: 旧\narea: 運用\nstatus: 進行中\npriority: 中\n---\n\n"
+                  "## 完了条件（クローズ3条件）\n1. 対象環境へ適用済み\n2. 確認\n\n## 過去の経緯\n")
+            c = run_py(root / TM / "close.py", "OPS-01", cwd=root)
+            self.assertEqual(c.returncode, 0, c.stderr)
+            self.assertNotIn("完了条件にチェックの無いもの", c.stderr)
+
     def test_decider_implies_issue(self):
         with TempProject(COPY) as root:
             r = self.run_new(root, "横断", "誰が決めるか", "--decider", "SH-01")

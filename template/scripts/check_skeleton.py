@@ -124,7 +124,7 @@ OVERVIEW_MARKERS = [
 # スケルトンが最初から持つハーネス（台帳に書かない）。スケルトン側 scripts/check.py が template の実物と一致するかを見る
 CORE_SKILLS = {
     "work-placement", "scratch", "update-overview", "update-env-info", "task",
-    "sync-design-docs", "audit-design-docs", "pickup", "harness",
+    "sync-design-docs", "audit-design-docs", "pickup", "harness", "draft-from-existing",
 }
 CORE_RULES = {"work-area.md", "docs-management.md", "secrets.md"}
 CORE_HOOKS = {
@@ -132,7 +132,7 @@ CORE_HOOKS = {
     "design_docs_reminder.sh", "design_docs_reminder.py", "impact_map.py",
     "phase.py", "machine_context.py", "drops.py", "pickup_state.py",
     "pickup_cue.sh", "pickup_cue.py", "pickup_check.sh", "pickup_check.py",
-    "project_config.py", "work_log.sh",
+    "project_config.py", "work_log.sh", "skeleton_drift.py",
 }
 # 案件が任意で置く差し込み口（台帳ではなく影響マップの表に行を書く。check_design_docs が見る）
 IMPACT_LOCAL = ".claude/hooks/impact_map_local.py"
@@ -654,6 +654,33 @@ def check_project_config(root: Path = ROOT, report=None) -> None:
         chk(True, f"{project_config.CONFIG} の形")
 
 
+def check_skeleton_record(root: Path = ROOT, report=None) -> None:
+    """`.claude/skeleton.json`（init.py の記録）の形と、スケルトンとのずれ。ずれは warn・info で出す（NG にしない）。"""
+    chk = report or check
+    path = root / ".claude/skeleton.json"
+    if not path.exists():
+        info("記録 .claude/skeleton.json が無い（スケルトンの init.py --merge を 1 回通すと作られる）")
+        return
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        chk(False, f".claude/skeleton.json を読めない（{e}）。スケルトンの init.py --merge で作り直す")
+        return
+    if not chk(isinstance(data, dict) and isinstance(data.get("version"), str) and isinstance(data.get("files"), dict),
+               ".claude/skeleton.json の形（version・files）"):
+        return
+    try:
+        import skeleton_drift
+        s = skeleton_drift.status(str(root))
+    except Exception:
+        return
+    if s["behind"]:
+        warn(f"スケルトン: v{s['project']} → v{s['skeleton']} が出ている（new-project スキルで更新）")
+    if s["local_mechanisms"]:
+        head = "、".join(s["local_mechanisms"][:5]) + (" ほか" if len(s["local_mechanisms"]) > 5 else "")
+        info(f"案件で直した仕組み {len(s['local_mechanisms'])} 件: {head}（スケルトンにも返すなら台帳の「返す」列へ）")
+
+
 def check_all() -> None:
     # 必須ファイル・ディレクトリ
     for rel in REQUIRED_FILES:
@@ -743,6 +770,9 @@ def check_all() -> None:
 
     # 案件ごとの設定 .claude/project.json の形
     check_project_config()
+
+    # スケルトンの記録とずれ（ずれは info）
+    check_skeleton_record()
 
     # 落ち先の検査が動く（中身では fail にしない。一覧は python3 scripts/check_drops.py）
     check_drops_quiet()

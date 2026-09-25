@@ -39,7 +39,8 @@ def config(root: Path, data) -> None:
 class ProjectConfigTest(unittest.TestCase):
     def test_missing_is_default(self):
         with TempProject() as root:
-            self.assertEqual(project_config.load(str(root)), {"work_area_allow": [], "nested_repos": []})
+            self.assertEqual(project_config.load(str(root)),
+                             {"work_area_allow": [], "nested_repos": [], "save_cues": []})
             self.assertEqual(project_config.problems(str(root)), [])
 
     def test_broken_json(self):
@@ -67,6 +68,27 @@ class ProjectConfigTest(unittest.TestCase):
             probs = project_config.problems(str(root))
             self.assertEqual(sum("ルート相対" in p for p in probs), 2)
             self.assertTrue(any("実在しない" in p for p in probs))
+
+    def test_save_cues_load_and_problems(self):
+        with TempProject() as root:
+            config(root, {"save_cues": [
+                {"glob": "環境情報.md", "cue": " 値は docs に書かない "},
+                {"glob": ["./a/**", "b/*.md"], "cue": "x"},
+                {"glob": "c.md", "cue": ""},          # cue が空 → 捨てる
+                {"glob": 3, "cue": "y"},              # glob の型違い → 捨てる
+                "not a dict",
+            ]})
+            got = project_config.load(str(root))["save_cues"]
+            self.assertEqual(got, [{"globs": ["環境情報.md"], "cue": "値は docs に書かない"},
+                                   {"globs": ["a/**", "b/*.md"], "cue": "x"}])
+            probs = project_config.problems(str(root))
+            self.assertTrue(any("3 件目の cue" in p for p in probs))
+            self.assertTrue(any("4 件目の glob は文字列" in p for p in probs))
+            self.assertTrue(any("5 件目が glob と cue" in p for p in probs))
+            config(root, {"save_cues": [{"glob": "../x", "cue": "y"}]})
+            self.assertTrue(any("ルート相対" in p for p in project_config.problems(str(root))))
+            config(root, {"save_cues": "x"})
+            self.assertTrue(any("オブジェクトのリスト" in p for p in project_config.problems(str(root))))
 
     def test_template_file_is_clean(self):
         self.assertEqual(project_config.problems(str(ROOT)), [])
@@ -188,6 +210,24 @@ class HookEndToEndTest(unittest.TestCase):
                   "def targets(rel):\n    return ['tools/a.md'] if rel.startswith('backend/') else []\n")
             out = run_hook("design_docs_reminder.sh", payload, root).stdout
             self.assertIn("docs/設計書/tools/a.md", out)
+
+
+    def test_reminder_save_cues(self):
+        with TempProject(copy=(".claude/hooks", ".claude/project.json", "docs/設計書")) as root:
+            # テンプレの既定: .claude/skills/** と 環境情報.md
+            payload = {"tool_name": "Edit", "tool_input": {"file_path": ".claude/skills/task/SKILL.md"},
+                       "session_id": ""}
+            self.assertIn("[保存の促し]", run_hook("design_docs_reminder.sh", payload, root).stdout)
+            payload["tool_input"]["file_path"] = "環境情報.md"
+            self.assertIn("docs/ に転記しない", run_hook("design_docs_reminder.sh", payload, root).stdout)
+            payload["tool_input"]["file_path"] = "README.md"
+            self.assertNotIn("[保存の促し]", run_hook("design_docs_reminder.sh", payload, root).stdout)
+            # 案件で足した cue は、打合せ記録の促しと一緒に出る
+            config(root, {"save_cues": [{"glob": "docs/案件/02_打合せ/*.md", "cue": "議事録を共有フォルダにも置く"}]})
+            payload["tool_input"]["file_path"] = "docs/案件/02_打合せ/20260926_定例.md"
+            out = run_hook("design_docs_reminder.sh", payload, root).stdout
+            self.assertIn("議事録を共有フォルダにも置く", out)
+            self.assertIn("[落ち先]", out)
 
 
 def git(cwd: Path, *args: str) -> str:

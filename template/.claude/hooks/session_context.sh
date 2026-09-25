@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook: フェーズ・タスクの状況・概要 HTML の鮮度・環境情報の有無と当日の一時フォルダ数・設計書の要確認と未記入・
-# 拾いもの・ハーネス候補とマシン側の混入を、見出しを含め 8 行以内で注入する。0 件の行（拾いもの・ハーネス/マシン側）は出さない。
+# 拾いもの・ハーネス候補とマシン側の混入・スケルトンの新しい版を、見出しを含め 8 行以内で注入する。
+# 0 件の行（拾いもの・ハーネス/マシン側/スケルトン）は出さない。
 # フェーズと厳しさの表は .claude/hooks/phase.py（表は --table）。stdout はそのまま Claude のコンテキストに入る。
 # 秘密情報は出力しない。python が無くても動く（フェーズは grep で読む）。常に exit 0。
 set -u
@@ -152,6 +153,13 @@ if [ -n "$PY" ] && [ -f ".claude/hooks/machine_context.py" ]; then
   mc=$("$PY" .claude/hooks/machine_context.py 2>/dev/null | head -1)
   if [ -n "$mc" ]; then
     parts="${parts:+${parts}。}${mc}"
+  fi
+fi
+# 7) スケルトンの新しい版（skeleton_drift.py。無ければ出さない）。6) と同じ行にまとめて 8 行以内を保つ
+if [ -n "$PY" ] && [ -f ".claude/hooks/skeleton_drift.py" ]; then
+  sd=$("$PY" .claude/hooks/skeleton_drift.py 2>/dev/null | head -1)
+  if [ -n "$sd" ]; then
+    parts="${parts:+${parts}。}${sd}"
   fi
 fi
 [ -z "$parts" ] || echo "- ${parts}"
