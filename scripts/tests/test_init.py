@@ -427,7 +427,97 @@ class NoGitSkeletonTest(unittest.TestCase):
             self.assertIn(".claude/hooks/phase.py", r.stdout.split("衝突（書いていない")[1])
 
 
+class OwnedSectionTest(unittest.TestCase):
+    """CLAUDE.md の職務記述(v1.6.0): 節が無ければ足す・案件が先に書いていれば触らない(二重にしない)。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._tmp = tempfile.TemporaryDirectory(prefix="skel-owned-test-")
+        tmp = Path(cls._tmp.name)
+        skel = copy_skeleton(tmp / "skel", "9.0.0", with_git=False)
+        claude = skel / "template/CLAUDE.md"
+        real = claude.read_text(encoding="utf-8")
+        span = INIT.section_span(real, "職務記述")
+        claude.write_text(real[:span[0]] + real[span[1]:], encoding="utf-8", newline="\n")   # 節の無い旧い版
+        git(skel, "init", "-q")
+        git(skel, "add", "-A")
+        git(skel, "commit", "-q", "-m", "v9.0.0")
+        init_py = skel / "scripts/init.py"
+        cls.dests = {}
+        for key in ("edited", "own", "nostamp"):
+            d = tmp / key
+            r = run_init(str(d), "--name", "節", "--slug", key, "--no-git", init_py=init_py)
+            assert r.returncode == 0, r.stdout + r.stderr
+            cls.dests[key] = d
+        edit(cls.dests["edited"] / "CLAUDE.md", lambda s: s.replace(INIT.DESC_UNSET, "案件で書いた説明", 1))
+        edit(cls.dests["own"] / "CLAUDE.md", lambda s: s + "\n## 9. 職務記述\n\n- 受ける依頼: 案件が先に書いた\n")
+        nostamp = cls.dests["nostamp"]
+        edit(nostamp / "CLAUDE.md", lambda s: s.split("\n", 1)[1])
+        (nostamp / ".claude/skeleton.json").unlink()
+
+        claude.write_text(real, encoding="utf-8", newline="\n")
+        (skel / "VERSION").write_text("9.1.0\n", encoding="utf-8")
+        ops = [op for m in INIT.load_migrations() if m["version"] == "1.6.0" for op in m["ops"]]
+        (skel / "scripts/migrations.json").write_text(
+            json.dumps({"migrations": [{"version": "9.1.0", "ops": ops}]}, ensure_ascii=False), encoding="utf-8")
+        git(skel, "add", "-A")
+        git(skel, "commit", "-q", "-m", "v9.1.0")
+        cls.res = {}
+        for key, d in cls.dests.items():
+            extra = ("--name", "節", "--slug", key) if key == "nostamp" else ()
+            cls.res[key] = run_init(str(d), "--merge", "--no-git", *extra, init_py=init_py)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tmp.cleanup()
+
+    def text(self, key: str) -> str:
+        r = self.res[key]
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return (self.dests[key] / "CLAUDE.md").read_text(encoding="utf-8")
+
+    def headings(self, text: str) -> int:
+        return sum(1 for line in text.splitlines() if line.startswith("#") and "職務記述" in line)
+
+    def test_added_when_missing(self):
+        text = self.text("edited")
+        self.assertEqual(self.headings(text), 1)
+        self.assertIn("案件で書いた説明", text)
+        self.assertLess(text.index("### 職務記述"), text.index("## 2. "))
+
+    def test_project_section_kept(self):
+        text = self.text("own")
+        self.assertEqual(self.headings(text), 1)
+        self.assertIn("案件が先に書いた", text)
+        self.assertNotIn("このフォルダの中で済む作業を書く", text)
+
+    def test_inserted_by_migration_without_record(self):
+        text = self.text("nostamp")
+        self.assertIn("CLAUDE.md", self.res["nostamp"].stdout.split("内容（案件側")[1])   # 3-way できない → 一覧
+        self.assertEqual(self.headings(text), 1)
+        self.assertLess(text.index("### 職務記述"), text.index("## 2. "))
+        again = run_init(str(self.dests["nostamp"]), "--merge", "--no-git", init_py=self.dests["nostamp"].parent / "skel/scripts/init.py")
+        self.assertEqual(self.headings((self.dests["nostamp"] / "CLAUDE.md").read_text(encoding="utf-8")), 1, again.stdout)
+
+
 class UnitTest(unittest.TestCase):
+    def test_owned_section_in_template_and_migration(self):
+        """職務記述の節が template にあり、v1.6.0 の移行で差し込む中身と一致する。"""
+        text = (TEMPLATE / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIsNotNone(INIT.section_span(text, "職務記述"))
+        ops = [op for m in INIT.load_migrations() if m["version"] == "1.6.0" for op in m["ops"]]
+        self.assertTrue(ops)
+        for op in ops:
+            self.assertIn(op["new"], text)
+
+    def test_drop_owned(self):
+        base = "# T\n\n## 1. A\n\na\n\n## 2. B\n"
+        new = "# T\n\n## 1. A\n\na\n\n### 職務記述\n\n- x\n\n## 2. B\n"
+        cur = base + "\n## 9. 職務記述\n\n- 案件\n"
+        self.assertEqual(INIT.drop_owned("CLAUDE.md", cur.encode(), base.encode(), new.encode()).decode(), base)
+        self.assertEqual(INIT.drop_owned("CLAUDE.md", base.encode(), base.encode(), new.encode()).decode(), new)
+        self.assertEqual(INIT.drop_owned("README.md", cur.encode(), base.encode(), new.encode()).decode(), new)
+
     def test_is_mechanism(self):
         f = INIT.is_mechanism
         self.assertTrue(f(".claude/settings.json"))
