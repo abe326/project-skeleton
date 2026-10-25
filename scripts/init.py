@@ -77,9 +77,6 @@ MECHANISM_PREFIXES = (".claude/", "scripts/")
 MECHANISM_TASK_DIR = "docs/案件/01_タスク管理/"
 # 仕組みでなくても 3-way で混ぜるもの（案件が §1 などを書き換えても、決まりの改善は届けたい）
 MERGE3_EXTRA = {"CLAUDE.md"}
-# 案件が自分で書く節（見出しに含む語）。元の内容に無い節を案件が先に書いていれば、新しい版からその節を外して混ぜる
-# （二重にしない。案件の節はそのまま残る）
-OWNED_SECTIONS = {"CLAUDE.md": ["職務記述"]}
 # migrations.json で使える操作（版ごとの専用コードは書かず、この 3 つの組み合わせで書く）
 MIGRATION_OPS = ("move", "json_add", "replace")
 
@@ -91,7 +88,7 @@ NEXT_STEPS_NEW = """\
   4. 現在地を 1 行書く                  docs/プロジェクト概要.html「3. 現在地」（Claude に「現在地を直して」でよい）
 
   今は書かなくてよいもの（必要になったら Claude が案内する）:
-    環境情報.md / 01 以外の設計書（要るときに scripts/add_doc.py で足す） / runbook / ADR / 画面（screens） / areas.json / CLAUDE.md §5・§6・§1 の職務記述（ほかのプロジェクトと頼み合うとき） / ハーネス台帳"""
+    環境情報.md / 01 以外の設計書（要るときに scripts/add_doc.py で足す） / runbook / ADR / 画面（screens） / areas.json / CLAUDE.md §5・§6 / ハーネス台帳"""
 NEXT_STEPS_UNSET_HEAD = "  空欄のまま残したもの:"
 NEXT_STEPS_UNSET_DESC = "    - 案件の説明（--desc なし）: CLAUDE.md §1・README.md・概要 HTML・01-概要.md §1 に「（未記入…）」"
 NEXT_STEPS_UNSET_OWNER = "    - 担当（--owner なし）: README.md・概要 HTML の「管理」・案件情報.md §1 に「（未定）」"
@@ -471,31 +468,6 @@ def keep_generated(new: bytes, cur: bytes, names: list[str]) -> bytes:
     return text.encode("utf-8")
 
 
-def section_span(text: str, word: str) -> tuple[int, int] | None:
-    """見出しに word を含む節の (開始, 終了)。終了は同じか上の階層の次の見出し（無ければ末尾）。"""
-    m = re.search(rf"(?m)^(#{{2,6}}) [^\n]*{re.escape(word)}[^\n]*$", text)
-    if not m:
-        return None
-    nxt = re.compile(rf"(?m)^#{{1,{len(m.group(1))}}} ").search(text, m.end())
-    return m.start(), nxt.start() if nxt else len(text)
-
-
-def drop_owned(rel: str, cur: bytes, base: bytes, new: bytes) -> bytes:
-    """案件が先に書いた節（元の内容に無い）を new から外す。"""
-    words = OWNED_SECTIONS.get(rel)
-    if not words:
-        return new
-    try:
-        c, b, n = (x.decode("utf-8") for x in (cur, base, new))
-    except UnicodeDecodeError:
-        return new
-    for w in words:
-        span = section_span(n, w)
-        if span and section_span(c, w) and not section_span(b, w):
-            n = n[:span[0]] + n[span[1]:]
-    return n.encode("utf-8")
-
-
 def merge3(cur: bytes, base: bytes, new: bytes) -> tuple[bytes | None, bool]:
     """git merge-file で 3-way。(結果, 衝突したか)。git が無い・失敗なら (None, True)。"""
     if not git_available():
@@ -562,13 +534,6 @@ def _json_add(obj, path: list, value) -> str:
     return "added"
 
 
-def one_line(text: str, width: int = 40) -> str:
-    """表示用に 1 行目だけ・長ければ切る。"""
-    first = text.strip("\n").split("\n", 1)[0]
-    more = "\n" in text.strip("\n") or len(first) > width
-    return first[:width] + ("…" if more else "")
-
-
 def apply_op(dest: Path, op: dict, dry: bool) -> tuple[str, str]:
     """1 つの操作を適用する。(結果, 説明)。結果は done / skip / manual。"""
     kind = op.get("op")
@@ -596,9 +561,6 @@ def apply_op(dest: Path, op: dict, dry: bool) -> tuple[str, str]:
             return "skip", f"{kind} {rel}（無い）"
         except (OSError, UnicodeDecodeError) as e:
             return "manual", f"{kind} {rel}（読めない: {e}）"
-        unless = op.get("unless")
-        if isinstance(unless, str) and unless and unless in text:
-            return "skip", f"{kind} {rel}（{unless} は既にある）"
         if kind == "replace":
             old, new = op.get("old"), op.get("new")
             if not isinstance(old, str) or not isinstance(new, str) or not old:
@@ -607,8 +569,11 @@ def apply_op(dest: Path, op: dict, dry: bool) -> tuple[str, str]:
                 return "skip", f"replace {rel}（置き換え元が{'無い' if old not in text else '複数ある'}）"
             if not dry:
                 p.write_text(text.replace(old, new), encoding="utf-8", newline="\n")
-            return "done", f"replace {rel}: {one_line(old)} → {one_line(new)}"
+            return "done", f"replace {rel}: {old} → {new}"
+        unless = op.get("unless")
         path = op.get("path")
+        if isinstance(unless, str) and unless and unless in text:
+            return "skip", f"json_add {rel}（{unless} は既にある）"
         if not isinstance(path, list) or not path:
             return "manual", f"json_add {rel}: path が不正"
         try:
@@ -978,8 +943,7 @@ def main() -> int:
                 keep_base(rel_str, base_sha, base_commit)
                 propose(rel_str, rendered)
                 continue
-            merged, conflict = (merge3(cur, base, drop_owned(rel_str, cur, base, rendered)) if base is not None
-                                else (None, True))
+            merged, conflict = merge3(cur, base, rendered) if base is not None else (None, True)
             if merged is not None and not conflict and json_ok(rel_str, merged):
                 backup(rel_str, cur)
                 if not args.dry_run:

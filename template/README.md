@@ -23,7 +23,6 @@
 | 設計書を足す | `python3 scripts/add_doc.py <番号>`（一覧は `--list`） |
 | skill・hook・ルール・許可を足す・外す | `harness` スキル（台帳に候補 → 承認して定義。外すときも同じ） |
 | マシン側の plugin を止める | `.claude/settings.json` の `enabledPlugins`（project-skeleton の `SETUP.md` §8） |
-| ほかのプロジェクトのセッションと仕事を頼み合う | `CLAUDE.md` §1「職務記述」の受ける依頼・受けない依頼を書く（組織の名簿があれば名簿の自分の節も）。書き込みを自分のフォルダに限る hook をマシン側で使うなら、`.claude/settings.local.json` の `env` に `"CC_OWN_FOLDER_GUARD": "1"`（既定では効かせない） |
 | 変えたことを元のスケルトンにも返す | `docs/ハーネス台帳.md` の「返す」列に理由を書く |
 
 ## Claude Code で開く前に
